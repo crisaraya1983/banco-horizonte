@@ -1,0 +1,6 @@
+Tipo de Producto;Sucursal Donde Se Ofrece;Número de Clientes;Volumen de Ventas
+Préstamo;Sucursal Principal;100;500000
+Ahorro;Sucursal Secundaria;80;200000
+Inversión;Sucursal Secundaria;50;150000
+Ahorro;Sucursal Principal;70;300000
+Préstamo;Sucursal Secundaria;60;350000

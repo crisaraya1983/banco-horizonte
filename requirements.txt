@@ -1,0 +1,26 @@
+# Manipulación y análisis de datos - es el corazón del procesamiento de datos
+pandas==2.1.1
+
+# Computación numérica - necesario para operaciones vectoriales y cálculos matemáticos
+numpy==1.24.3
+
+# Mapas interactivos basados en OpenStreetMap - visualización geoespacial
+folium==0.14.0
+
+# Integración de folium con Streamlit - permite renderizar mapas de folium en Streamlit
+streamlit-folium==0.17.0
+
+# Gráficos interactivos y dinámicos - para visualizaciones que el usuario puede interactuar
+plotly==5.17.0
+
+# Machine Learning - necesario para modelos predictivos de demanda
+scikit-learn==1.3.1
+
+# Cálculos de distancia geográfica - complementa nuestras funciones de Haversine
+geopy==2.3.0
+
+# Cálculos científicos avanzados - útil para análisis estadísticos futuros
+scipy==1.11.2
+
+# Para crear matrices de datos tabulares con formato mejorado (opcional, pero recomendado)
+openpyxl==3.1.2

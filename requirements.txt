@@ -1,3 +1,4 @@
+streamlit
 # Manipulación y análisis de datos - es el corazón del procesamiento de datos
 pandas==2.1.1
 
@@ -22,5 +23,5 @@ geopy==2.3.0
 # Cálculos científicos avanzados - útil para análisis estadísticos futuros
 scipy==1.11.2
 
-# Para crear matrices de datos tabulares con formato mejorado (opcional, pero recomendado)
+# Para crear matrices de datos tabulares con formato mejorado
 openpyxl==3.1.2

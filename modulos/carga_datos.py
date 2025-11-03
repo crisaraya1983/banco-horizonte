@@ -275,3 +275,34 @@ def obtener_datos_consolidados():
     ]]
     
     return consolidado
+
+@st.cache_data
+def obtener_matriz_distancias_sucursales():
+
+    from modulos.geoespacial import distancia_haversine
+    
+    sucursales = cargar_sucursales()
+    
+    distancias = []
+    
+    for idx1, row1 in sucursales.iterrows():
+        for idx2, row2 in sucursales.iterrows():
+            if idx1 != idx2:
+                distancia = distancia_haversine(
+                    row1['Latitud'], row1['Longitud'],
+                    row2['Latitud'], row2['Longitud']
+                )
+                
+                distancias.append({
+                    'Sucursal_Origen': row1['Nombre'],
+                    'Latitud_Origen': row1['Latitud'],
+                    'Longitud_Origen': row1['Longitud'],
+                    'Ubicación_Origen': row1['Ubicación'],
+                    'Sucursal_Destino': row2['Nombre'],
+                    'Latitud_Destino': row2['Latitud'],
+                    'Longitud_Destino': row2['Longitud'],
+                    'Ubicación_Destino': row2['Ubicación'],
+                    'Distancia_km': round(distancia, 2)
+                })
+    
+    return pd.DataFrame(distancias)

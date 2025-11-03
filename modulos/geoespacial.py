@@ -4,16 +4,7 @@ from math import radians, cos, sin, asin, sqrt
 
 
 def distancia_haversine(lat1, lon1, lat2, lon2):
-    """
-    Calcula la distancia en kilómetros entre dos puntos usando la fórmula de Haversine.
-    
-    Parámetros:
-        lat1, lon1: Latitud y longitud del primer punto
-        lat2, lon2: Latitud y longitud del segundo punto
-    
-    Retorna:
-        float: Distancia en kilómetros
-    """
+
     # Convertir grados a radianes
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
     
@@ -28,15 +19,7 @@ def distancia_haversine(lat1, lon1, lat2, lon2):
 
 
 def calcular_distancia_a_punto_mas_cercano(lat_cliente, lon_cliente, puntos_servicio):
-    """
-    Encuentra el punto de servicio más cercano a un cliente y calcula su distancia.
-    Parámetros:
-        lat_cliente, lon_cliente: Coordenadas del cliente
-        puntos_servicio: DataFrame con columnas 'Latitud' y 'Longitud'
-    
-    Retorna:
-        dict: {'distancia_km': float, 'índice_punto': int}
-    """
+
     if len(puntos_servicio) == 0:
         return {"distancia_km": float('inf'), "índice_punto": None}
     

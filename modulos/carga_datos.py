@@ -75,3 +75,128 @@ def cargar_todos_los_datos():
     productos = cargar_productos()
     
     return sucursales, cajeros, clientes, productos
+
+@st.cache_data
+def obtener_productos_consolidados():
+
+    df_productos = cargar_productos()
+    
+    df_consolidado = df_productos.groupby('Tipo de Producto').agg({
+        'Número de Clientes': 'sum',
+        'Volumen de Ventas': 'sum'
+    }).reset_index()
+    
+    df_consolidado.columns = ['Tipo de Producto', 'Total Clientes', 'Total Volumen Ventas']
+    df_consolidado = df_consolidado.sort_values('Total Clientes', ascending=False)
+    
+    return df_consolidado
+
+
+@st.cache_data
+def obtener_ubicaciones_con_productos():
+  
+    df_sucursales = cargar_sucursales()
+    df_clientes = cargar_clientes()
+    df_productos = cargar_productos()
+    
+    # Merge 1: Sucursales con Clientes por ubicación
+    df_merge1 = df_sucursales.merge(
+        df_clientes,
+        left_on='Ubicación',
+        right_on='Ubicación de Residencia',
+        how='inner',
+        suffixes=('_sucursal', '_cliente')
+    )
+    
+    # Merge 2: Agregar productos usando Tipo de Sucursal + Producto Financiero
+    df_merge2 = df_merge1.merge(
+        df_productos,
+        left_on=['Tipo de Sucursal', 'Productos Financieros Adquiridos'],
+        right_on=['Sucursal Donde Se Ofrece', 'Tipo de Producto'],
+        how='left'
+    )
+    
+    # Seleccionar y renombrar columnas finales
+    columnas_resultado = [
+        'Ubicación',
+        'Nombre',
+        'Tipo de Sucursal',
+        'Latitud',
+        'Longitud',
+        'Productos Financieros Adquiridos',
+        'Número de Clientes',
+        'Volumen de Ventas',
+        'Volumen de Transacciones',
+        'Saldo Promedio de Cuentas'
+    ]
+    
+    df_resultado = df_merge2[columnas_resultado].copy()
+    
+    df_resultado.columns = [
+        'Ubicación',
+        'Sucursal',
+        'Tipo de Sucursal',
+        'Latitud',
+        'Longitud',
+        'Tipo de Producto',
+        'Clientes del Producto',
+        'Volumen de Ventas',
+        'Volumen de Transacciones Zona',
+        'Saldo Promedio Zona'
+    ]
+    
+    return df_resultado
+
+
+@st.cache_data
+def obtener_resumen_por_sucursal():
+
+    df_ubicaciones = obtener_ubicaciones_con_productos()
+    df_sucursales = cargar_sucursales()
+    
+    # Agregar por sucursal
+    df_resumen = df_ubicaciones.groupby(['Ubicación', 'Sucursal', 'Tipo de Sucursal']).agg({
+        'Tipo de Producto': lambda x: ', '.join(x.unique()),
+        'Clientes del Producto': 'sum',
+        'Volumen de Ventas': 'sum',
+        'Volumen de Transacciones Zona': 'first',
+        'Saldo Promedio Zona': 'first'
+    }).reset_index()
+    
+    # Agregar información de sucursal (empleados, transacciones)
+    df_resumen = df_resumen.merge(
+        df_sucursales[['Ubicación', 'Número de Empleados', 'Volumen de Transacciones (mes)']],
+        on='Ubicación',
+        how='left'
+    )
+    
+    df_resumen.columns = [
+        'Ubicación',
+        'Sucursal',
+        'Tipo de Sucursal',
+        'Productos Ofrecidos',
+        'Total Clientes',
+        'Total Volumen Ventas',
+        'Volumen Transacciones Zona',
+        'Saldo Promedio Zona',
+        'Empleados',
+        'Volumen Transacciones Sucursal Mensual'
+    ]
+    
+    # Reordenar columnas para mejor presentación
+    orden_columnas = [
+        'Ubicación',
+        'Sucursal',
+        'Tipo de Sucursal',
+        'Empleados',
+        'Volumen Transacciones Sucursal Mensual',
+        'Productos Ofrecidos',
+        'Total Clientes',
+        'Total Volumen Ventas',
+        'Volumen Transacciones Zona',
+        'Saldo Promedio Zona'
+    ]
+    
+    df_resumen = df_resumen[orden_columnas]
+    
+    return df_resumen

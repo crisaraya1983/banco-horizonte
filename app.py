@@ -132,37 +132,34 @@ def pagina_inicio():
     
     st.divider()
     
-    # Sección 2: Cobertura geográfica
-    st.markdown('<div class="section-header">Cobertura Geográfica General</div>', 
+    # Sección 2: Distribución de Clientes por Sucursal
+    st.markdown('<div class="section-header">Cobertura de Clientes por Sucursal</div>', 
                 unsafe_allow_html=True)
     
-    cobertura = calcular_cobertura_geográfica(
-        clientes, cajeros, sucursales,
-        umbral_sucursal=10.0, umbral_cajero=5.0
-    )
+    datos_consolidados = obtener_datos_consolidados()
     
-    col1, col2, col3 = st.columns(3)
+    clientes_por_sucursal = datos_consolidados.groupby(['Ubicación', 'Nombre', 'Tipo de Sucursal']).agg({
+        'Numero_Clientes_Producto': 'sum'
+    }).reset_index()
     
-    with col1:
-        st.metric(
-            label="Cobertura Sucursales",
-            value=f"{cobertura['cobertura_sucursales_pct']:.1f}%",
-            delta="Clientes a <10km"
-        )
+    clientes_por_sucursal.columns = ['Ubicación', 'Sucursal', 'Tipo de Sucursal', 'Total_Clientes']
     
-    with col2:
-        st.metric(
-            label="Cobertura Cajeros",
-            value=f"{cobertura['cobertura_cajeros_pct']:.1f}%",
-            delta="Clientes a <5km"
-        )
+    total_clientes = clientes_por_sucursal['Total_Clientes'].sum()
     
-    with col3:
-        st.metric(
-            label="Cobertura Completa",
-            value=f"{cobertura['cobertura_completa_pct']:.1f}%",
-            delta=f"{cobertura['clientes_sin_cobertura_completa']} clientes sin servicio"
-        )
+    clientes_por_sucursal['Porcentaje'] = (clientes_por_sucursal['Total_Clientes'] / total_clientes * 100).round(2)
+    
+    clientes_por_sucursal_sorted = clientes_por_sucursal.sort_values('Total_Clientes', ascending=False).reset_index(drop=True)
+    
+    # Crear columnas para mostrar las métricas en 2 columnas
+    cols = st.columns(5)
+    
+    for idx, row in clientes_por_sucursal_sorted.iterrows():
+        col_idx = idx % 5
+        with cols[col_idx]:
+            st.metric(
+                label=row['Sucursal'],
+                value=f"{row['Porcentaje']:.2f}%"
+            )
   
     st.divider()
     

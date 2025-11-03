@@ -1,29 +1,10 @@
-# Framework web para crear dashboards interactivos
 streamlit>=1.40.0
-
-# Manipulación y análisis de datos - actualizado a versión compatible con Python 3.13
 pandas>=2.2.0
-
-# Computación numérica - versión compatible con pandas 2.2+
 numpy>=1.26.0
-
-# Mapas interactivos basados en OpenStreetMap
 folium>=0.14.0
-
-# Integración de folium con Streamlit
 streamlit-folium>=0.17.0
-
-# Gráficos interactivos y dinámicos
 plotly>=5.18.0
-
-# Machine Learning
 scikit-learn>=1.5.0
-
-# Cálculos de distancia geográfica
 geopy>=2.4.0
-
-# Cálculos científicos
 scipy>=1.13.0
-
-# Para Excel (opcional pero útil)
 openpyxl>=3.1.0

@@ -87,7 +87,6 @@ def obtener_productos_consolidados():
     }).reset_index()
     
     df_consolidado.columns = ['Tipo de Producto', 'Total Clientes', 'Total Volumen Ventas']
-    df_consolidado = df_consolidado.sort_values('Total Clientes', ascending=False)
     
     return df_consolidado
 
@@ -200,3 +199,79 @@ def obtener_resumen_por_sucursal():
     df_resumen = df_resumen[orden_columnas]
     
     return df_resumen
+
+"""
+FUNCIÓN PARA AGREGAR A modulos/carga_datos.py
+
+Copia esta función completa al final de tu archivo carga_datos.py
+"""
+
+@st.cache_data
+def obtener_datos_consolidados():
+
+    sucursales = cargar_sucursales()
+    cajeros = cargar_cajeros()
+    clientes = cargar_clientes()
+    productos = cargar_productos()
+    
+    consolidado = sucursales.merge(
+        cajeros[['Ubicación', 'Volumen de Transacciones Diarias', 'Tipo de Transacciones']],
+        on='Ubicación',
+        how='left'
+    )
+    
+    consolidado = consolidado.merge(
+        clientes[['Ubicación de Residencia', 'Frecuencia de Visitas', 
+                  'Productos Financieros Adquiridos', 'Volumen de Transacciones', 
+                  'Saldo Promedio de Cuentas']],
+        left_on='Ubicación',
+        right_on='Ubicación de Residencia',
+        how='left'
+    )
+    
+    productos_preparado = productos.rename(columns={
+        'Sucursal Donde Se Ofrece': 'Sucursal_Merge',
+        'Tipo de Producto': 'Producto_Merge'
+    })
+    
+    consolidado['Sucursal_Merge'] = consolidado['Tipo de Sucursal']
+    consolidado['Producto_Merge'] = consolidado['Productos Financieros Adquiridos']
+    
+    consolidado = consolidado.merge(
+        productos_preparado[['Sucursal_Merge', 'Producto_Merge', 
+                            'Número de Clientes', 'Volumen de Ventas']],
+        on=['Sucursal_Merge', 'Producto_Merge'],
+        how='left'
+    )
+    
+    consolidado.drop(columns=['Sucursal_Merge', 'Producto_Merge', 'Ubicación de Residencia'], 
+                     inplace=True)
+    
+    consolidado.rename(columns={
+        'Volumen de Transacciones (mes)': 'Volumen_Transacciones_Sucursal',
+        'Volumen de Transacciones Diarias': 'Volumen_Transacciones_Cajero_Diarias',
+        'Tipo de Transacciones': 'Tipos_Transacciones_Cajero',
+        'Volumen de Transacciones': 'Volumen_Transacciones_Cliente',
+        'Número de Clientes': 'Numero_Clientes_Producto',
+        'Volumen de Ventas': 'Volumen_Ventas_Producto'
+    }, inplace=True)
+    
+    consolidado = consolidado[[
+        'Ubicación',
+        'Nombre',
+        'Tipo de Sucursal',
+        'Número de Empleados',
+        'Volumen_Transacciones_Sucursal',
+        'Volumen_Transacciones_Cajero_Diarias',
+        'Tipos_Transacciones_Cajero',
+        'Frecuencia de Visitas',
+        'Productos Financieros Adquiridos',
+        'Volumen_Transacciones_Cliente',
+        'Saldo Promedio de Cuentas',
+        'Numero_Clientes_Producto',
+        'Volumen_Ventas_Producto',
+        'Latitud',
+        'Longitud'
+    ]]
+    
+    return consolidado

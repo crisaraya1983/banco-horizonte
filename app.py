@@ -5,10 +5,12 @@ from pathlib import Path
 from modulos.carga_datos import (
     cargar_sucursales, cargar_cajeros, cargar_clientes, 
     cargar_productos, cargar_todos_los_datos,
-    obtener_productos_consolidados
+    obtener_productos_consolidados,
+    obtener_datos_consolidados
 )
 
 from modulos.geoespacial import calcular_cobertura_geográfica
+
 from modulos.analisis import (
     pagina_analisis_cobertura,
     pagina_segmentacion_geografica,
@@ -161,7 +163,7 @@ def pagina_inicio():
             value=f"{cobertura['cobertura_completa_pct']:.1f}%",
             delta=f"{cobertura['clientes_sin_cobertura_completa']} clientes sin servicio"
         )
-    
+  
     st.divider()
     
     # Sección 3: Vista previa de datos

@@ -4,8 +4,10 @@ from pathlib import Path
 
 from modulos.carga_datos import (
     cargar_sucursales, cargar_cajeros, cargar_clientes, 
-    cargar_productos, cargar_todos_los_datos
+    cargar_productos, cargar_todos_los_datos,
+    obtener_productos_consolidados
 )
+
 from modulos.geoespacial import calcular_cobertura_geográfica
 from modulos.analisis import (
     pagina_analisis_cobertura,
@@ -110,6 +112,8 @@ def pagina_inicio():
     st.markdown('<div class="section-header">Resumen de Datos</div>', 
                 unsafe_allow_html=True)
     
+    productos_consolidados = obtener_productos_consolidados()
+    
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -119,10 +123,10 @@ def pagina_inicio():
         st.metric(label="Cajeros Automáticos", value=len(cajeros))
     
     with col3:
-        st.metric(label="Clientes", value=len(clientes))
+        st.metric(label="Clientes", value=int(productos_consolidados['Total Clientes'].sum()))
     
     with col4:
-        st.metric(label="Productos", value=len(productos))
+        st.metric(label="Productos", value=len(productos_consolidados))
     
     st.divider()
     

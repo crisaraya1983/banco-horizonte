@@ -1,22 +1,23 @@
 [theme]
-# Tema claro y profesional
-primaryColor="#1f77b4"
+primaryColor="#2c5aa0"
 backgroundColor="#ffffff"
-secondaryBackgroundColor="#f0f2f6"
-textColor="#262730"
+secondaryBackgroundColor="#f8f9fa"
+textColor="#2d3748"
 font="sans serif"
 
 [client]
-# Configuraciones del cliente
 showErrorDetails=true
 toolbarMode="viewer"
 
 [logger]
-# Configuraciones de logging
 level="info"
 
 [server]
-# Configuraciones del servidor
 port=8501
 headless=true
 runOnSave=true
+maxUploadSize=200
+enableXsrfProtection=true
+
+[browser]
+gatherUsageStats=false

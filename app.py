@@ -15,6 +15,8 @@ from modulos.analisis import (
     pagina_prediccion_demanda,
     pagina_analisis_riesgos
 )
+from modulos.componentes import inicializar_componentes
+
 
 # CONFIGURACIÓN DE STREAMLIT
 
@@ -27,9 +29,10 @@ def configurar_pagina():
     )
 
 
-def aplicar_estilos_corporativos():
+def aplicar_estilos():
     st.markdown("""
     <style>
+    /* Paleta de colores y variables */
     :root {
         --color-primary: #1a365d;
         --color-secondary: #2c5aa0;
@@ -85,14 +88,15 @@ def aplicar_estilos_corporativos():
     }
     </style>
     """, unsafe_allow_html=True)
+    
+    # Inicializar componentes personalizados
+    inicializar_componentes()
 
 
 # PÁGINA PRINCIPAL
 
 def pagina_inicio():
-    """
-    Dashboard principal.
-    """
+
     st.markdown('<div class="main-header">Análisis Geoespacial</div>', 
                 unsafe_allow_html=True)
     
@@ -178,11 +182,9 @@ def pagina_inicio():
 # NAVEGACIÓN PRINCIPAL
 
 def main():
-    """
-    Función principal con navegación por sidebar.
-    """
+
     configurar_pagina()
-    aplicar_estilos_corporativos()
+    aplicar_estilos()
     
     with st.sidebar:
         st.title("Navegación")

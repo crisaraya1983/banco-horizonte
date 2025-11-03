@@ -1,17 +1,3 @@
-"""
-Módulo de Cálculos Geoespaciales
-=================================
-Este módulo encapsula toda la lógica de cálculos geográficos.
-La idea es que los módulos de análisis y visualización no necesiten preocuparse
-por los detalles matemáticos; simplemente llaman a estas funciones.
-
-Los cálculos geoespaciales son la base de nuestro análisis porque permiten:
-1. Entender proximidad entre clientes y puntos de servicio
-2. Identificar áreas desatendidas
-3. Optimizar rutas de mantenimiento
-4. Segmentar clientes por ubicación
-"""
-
 import pandas as pd
 import numpy as np
 from math import radians, cos, sin, asin, sqrt
@@ -21,14 +7,11 @@ def distancia_haversine(lat1, lon1, lat2, lon2):
     """
     Calcula la distancia en kilómetros entre dos puntos usando la fórmula de Haversine.
     
-    La fórmula de Haversine es la forma correcta de calcular distancias en la tierra
-    considerando su forma esférica. Es más precisa que simplemente restar coordenadas.
-    
     Parámetros:
         lat1, lon1: Latitud y longitud del primer punto
         lat2, lon2: Latitud y longitud del segundo punto
     
-    Returns:
+    Retorna:
         float: Distancia en kilómetros
     """
     # Convertir grados a radianes
@@ -47,15 +30,11 @@ def distancia_haversine(lat1, lon1, lat2, lon2):
 def calcular_distancia_a_punto_mas_cercano(lat_cliente, lon_cliente, puntos_servicio):
     """
     Encuentra el punto de servicio más cercano a un cliente y calcula su distancia.
-    
-    Esto es crítico para entender la cobertura. Un cliente que está a más de 5 km
-    del punto de servicio más cercano podría estar en una zona desatendida.
-    
     Parámetros:
         lat_cliente, lon_cliente: Coordenadas del cliente
         puntos_servicio: DataFrame con columnas 'Latitud' y 'Longitud'
     
-    Returns:
+    Retorna:
         dict: {'distancia_km': float, 'índice_punto': int}
     """
     if len(puntos_servicio) == 0:
@@ -79,19 +58,6 @@ def calcular_distancia_a_punto_mas_cercano(lat_cliente, lon_cliente, puntos_serv
 
 
 def calcular_distancia_a_sucursal_mas_cercana(clientes_df, sucursales_df):
-    """
-    Para cada cliente, calcula su distancia a la sucursal más cercana.
-    
-    Esta función agrega una columna al dataframe de clientes indicando
-    cuál es la sucursal más cercana y a qué distancia se encuentra.
-    
-    Parámetros:
-        clientes_df: DataFrame de clientes
-        sucursales_df: DataFrame de sucursales
-    
-    Returns:
-        pd.DataFrame: Dataframe de clientes con nuevas columnas de proximidad
-    """
     clientes = clientes_df.copy()
     clientes['Distancia_a_Sucursal_km'] = 0.0
     clientes['Índice_Sucursal_Cercana'] = 0
@@ -109,16 +75,6 @@ def calcular_distancia_a_sucursal_mas_cercana(clientes_df, sucursales_df):
 
 
 def calcular_distancia_a_cajero_mas_cercano(clientes_df, cajeros_df):
-    """
-    Similar a la función anterior pero para cajeros automáticos.
-    
-    Parámetros:
-        clientes_df: DataFrame de clientes
-        cajeros_df: DataFrame de cajeros
-    
-    Returns:
-        pd.DataFrame: Dataframe de clientes con información de proximidad a cajeros
-    """
     clientes = clientes_df.copy()
     clientes['Distancia_a_Cajero_km'] = 0.0
     clientes['Índice_Cajero_Cercano'] = 0
@@ -136,21 +92,6 @@ def calcular_distancia_a_cajero_mas_cercano(clientes_df, cajeros_df):
 
 
 def identificar_zonas_desatendidas(clientes_df, sucursales_df, umbral_km=5.0):
-    """
-    Identifica clientes que están por encima del umbral de distancia.
-    
-    Los clientes a más de 5 km (o el umbral que especifiques) del punto de servicio
-    más cercano se consideran en una zona desatendida. Esto es información valiosa
-    para decisiones de expansión.
-    
-    Parámetros:
-        clientes_df: DataFrame de clientes (debe incluir 'Distancia_a_Sucursal_km')
-        sucursales_df: DataFrame de sucursales (solo se usa para contexto)
-        umbral_km: Distancia máxima aceptable en km
-    
-    Returns:
-        pd.DataFrame: Subset de clientes que están en zonas desatendidas
-    """
     if 'Distancia_a_Sucursal_km' not in clientes_df.columns:
         clientes_df = calcular_distancia_a_sucursal_mas_cercana(clientes_df, sucursales_df)
     
@@ -160,17 +101,7 @@ def identificar_zonas_desatendidas(clientes_df, sucursales_df, umbral_km=5.0):
 
 def crear_matriz_distancias(puntos_df):
     """
-    Crea una matriz de distancias entre todos los puntos (cajeros o sucursales).
-    
-    Esta matriz es útil para optimización logística. Por ejemplo, para planificar
-    rutas de mantenimiento eficientes de cajeros.
-    
-    Parámetros:
-        puntos_df: DataFrame con columnas 'Latitud' y 'Longitud'
-    
-    Returns:
-        np.ndarray: Matriz simétrica NxN donde cada elemento [i,j] es la distancia
-                   entre el punto i y el punto j en km
+    CMatriz de distancias entre todos los puntos (cajeros o sucursales)
     """
     n_puntos = len(puntos_df)
     matriz = np.zeros((n_puntos, n_puntos))
@@ -188,15 +119,6 @@ def crear_matriz_distancias(puntos_df):
 def calcular_centroide_geográfico(ubicaciones_df):
     """
     Calcula el punto central (centroide) de un conjunto de ubicaciones.
-    
-    Esto es útil para entender el "centro de gravedad" de clientes o sucursales
-    en una región específica.
-    
-    Parámetros:
-        ubicaciones_df: DataFrame con columnas 'Latitud' y 'Longitud'
-    
-    Returns:
-        tuple: (latitud_promedio, longitud_promedio)
     """
     lat_prom = ubicaciones_df['Latitud'].mean()
     lon_prom = ubicaciones_df['Longitud'].mean()
@@ -206,18 +128,6 @@ def calcular_centroide_geográfico(ubicaciones_df):
 def agrupar_clientes_por_proximidad(clientes_df, sucursales_df):
     """
     Agrupa clientes por su sucursal más cercana.
-    
-    Esto nos permite entender cuántos clientes "pertenecen" a cada sucursal
-    desde una perspectiva geográfica, independientemente de dónde realicen
-    transacciones actualmente.
-    
-    Parámetros:
-        clientes_df: DataFrame de clientes
-        sucursales_df: DataFrame de sucursales
-    
-    Returns:
-        dict: Diccionario donde cada clave es el índice de sucursal y el valor
-              es una lista de índices de clientes más cercanos a esa sucursal
     """
     clientes = calcular_distancia_a_sucursal_mas_cercana(clientes_df, sucursales_df)
     
@@ -232,16 +142,6 @@ def agrupar_clientes_por_proximidad(clientes_df, sucursales_df):
 def calcular_densidad_clientes_por_sucursal(clientes_df, sucursales_df):
     """
     Calcula cuántos clientes (por unidad de área) hay cerca de cada sucursal.
-    
-    La densidad de clientes es un indicador de demanda potencial en cada área.
-    Una sucursal con baja densidad podría estar en una zona poco poblada.
-    
-    Parámetros:
-        clientes_df: DataFrame de clientes
-        sucursales_df: DataFrame de sucursales
-    
-    Returns:
-        pd.DataFrame: DataFrame con densidad de clientes por sucursal
     """
     agrupaciones = agrupar_clientes_por_proximidad(clientes_df, sucursales_df)
     
@@ -250,7 +150,7 @@ def calcular_densidad_clientes_por_sucursal(clientes_df, sucursales_df):
         densidades.append({
             'Sucursal_Índice': idx_sucursal,
             'Cantidad_Clientes': len(clientes_índices),
-            'Densidad': len(clientes_índices) / max(1, len(clientes_df))  # Proporcional
+            'Densidad': len(clientes_índices) / max(1, len(clientes_df))
         })
     
     return pd.DataFrame(densidades)
@@ -258,22 +158,6 @@ def calcular_densidad_clientes_por_sucursal(clientes_df, sucursales_df):
 
 def calcular_cobertura_geográfica(clientes_df, cajeros_df, sucursales_df, 
                                    umbral_sucursal=10.0, umbral_cajero=5.0):
-    """
-    Realiza un análisis completo de cobertura geográfica.
-    
-    Determina qué porcentaje de clientes está cubierto (dentro del umbral)
-    tanto por sucursales como por cajeros automáticos.
-    
-    Parámetros:
-        clientes_df: DataFrame de clientes
-        cajeros_df: DataFrame de cajeros
-        sucursales_df: DataFrame de sucursales
-        umbral_sucursal: Distancia máxima a sucursal (km)
-        umbral_cajero: Distancia máxima a cajero (km)
-    
-    Returns:
-        dict: Diccionario con métricas de cobertura
-    """
     clientes = clientes_df.copy()
     clientes = calcular_distancia_a_sucursal_mas_cercana(clientes, sucursales_df)
     clientes = calcular_distancia_a_cajero_mas_cercano(clientes, cajeros_df)

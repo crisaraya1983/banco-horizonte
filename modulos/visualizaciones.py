@@ -1,17 +1,3 @@
-"""
-Módulo de Visualizaciones Geoespaciales
-========================================
-Este módulo encapsula toda la lógica de creación de visualizaciones.
-Separa la "lógica de presentación" de la "lógica de datos".
-
-La filosofía aquí es que este módulo no se preocupa por cómo se calculan los datos,
-solo por cómo presentarlos de forma hermosa e interactiva.
-
-Usamos dos librerías principales:
-- Folium: Para mapas interactivos basados en OpenStreetMap
-- Plotly: Para gráficos interactivos que el usuario puede explorar
-"""
-
 import folium
 from folium import plugins
 import plotly.graph_objects as go
@@ -21,83 +7,91 @@ import numpy as np
 from math import radians, cos, sin, asin, sqrt
 
 
-# ============================================================================
-# FUNCIONES DE UTILIDAD PARA MAPAS
-# ============================================================================
+# CONFIGURACIÓN BASE DE PLOTLY
+
+# Paleta de colores
+COLORES = [
+    "#2c5aa0",
+    "#3498db",
+    "#27ae60",
+    "#f39c12",
+    "#e74c3c",
+    "#9b59b6",
+    "#1abc9c",
+    "#34495e"
+]
+
+
+def aplicar_tema(fig):
+    """
+    Aplica el tema visual a cualquier gráfico Plotly.
+    """
+    fig.update_layout(
+        font=dict(
+            family="Arial, sans-serif",
+            size=12,
+            color="#2d3748"
+        ),
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="#ffffff",
+        hovermode="x unified",
+        showlegend=True,
+        legend=dict(
+            bgcolor="rgba(255, 255, 255, 0.8)",
+            bordercolor="#e2e8f0",
+            borderwidth=1,
+            x=0.01,
+            y=0.99,
+            xanchor="left",
+            yanchor="top"
+        ),
+        margin=dict(l=50, r=50, t=50, b=50)
+    )
+    
+    fig.update_xaxes(
+        gridcolor="#e2e8f0",
+        showgrid=True,
+        zeroline=False,
+        showline=True,
+        linewidth=1,
+        linecolor="#e2e8f0"
+    )
+    
+    fig.update_yaxes(
+        gridcolor="#e2e8f0",
+        showgrid=True,
+        zeroline=False,
+        showline=True,
+        linewidth=1,
+        linecolor="#e2e8f0"
+    )
+    
+    return fig
+
+
+# FUNCIONES DE MAPAS (FOLIUM)
 
 def crear_mapa_base(centro_lat, centro_lon, zoom=6, tiles="OpenStreetMap"):
-    """
-    Crea un mapa base vacío centrado en las coordenadas especificadas.
-    
-    Este es el punto de partida para cualquier mapa. Folium proporciona
-    diferentes opciones de tiles (capas base) que varían en estilo:
-    - OpenStreetMap: Clásico, monocromo
-    - CartoDB positron: Limpio, minimalista
-    - CartoDB voyager: Colorido, con más detalles
-    
-    Parámetros:
-        centro_lat, centro_lon: Coordenadas del centro del mapa
-        zoom: Nivel de zoom inicial (1-18, más alto = más zoom)
-        tiles: Estilo de mapa a usar
-    
-    Returns:
-        folium.Map: Objeto de mapa folium
-    """
     mapa = folium.Map(
         location=[centro_lat, centro_lon],
         zoom_start=zoom,
         tiles=tiles,
-        prefer_canvas=True  # Mejora performance en navegadores
+        prefer_canvas=True
     )
     return mapa
 
 
 def calcular_centroide(df):
-    """
-    Calcula el centro geográfico de un conjunto de puntos.
-    
-    Parámetros:
-        df: DataFrame con columnas 'Latitud' y 'Longitud'
-    
-    Returns:
-        tuple: (latitud_promedio, longitud_promedio)
-    """
     lat_prom = df['Latitud'].mean()
     lon_prom = df['Longitud'].mean()
     return lat_prom, lon_prom
 
 
-# ============================================================================
-# VISUALIZACIÓN DE SUCURSALES Y CAJEROS
-# ============================================================================
-
 def crear_mapa_sucursales_cajeros(sucursales_df, cajeros_df, clientes_df=None):
-    """
-    Crea un mapa interactivo mostrando todas las sucursales y cajeros automáticos.
-    
-    Este es probablemente el mapa más importante para entender la cobertura actual
-    de la red bancaria. Muestra:
-    - Sucursales como marcadores azules grandes
-    - Cajeros como marcadores verdes más pequeños
-    - Opcionalmente, clientes como puntos rojos pequeños
-    
-    Los diferentes colores hacen que sea fácil distinguir qué es qué a simple vista.
-    
-    Parámetros:
-        sucursales_df: DataFrame de sucursales
-        cajeros_df: DataFrame de cajeros
-        clientes_df: DataFrame de clientes (opcional)
-    
-    Returns:
-        folium.Map: Mapa interactivo con todas las ubicaciones
-    """
-    # Calculamos el centroide de sucursales para centrar el mapa
     centro_lat, centro_lon = calcular_centroide(sucursales_df)
-    
-    # Creamos el mapa base
     mapa = crear_mapa_base(centro_lat, centro_lon, zoom=7)
     
-    # Agregamos sucursales como marcadores azules
+    # Agregar sucursales
     for idx, row in sucursales_df.iterrows():
         folium.Marker(
             location=[row['Latitud'], row['Longitud']],
@@ -110,7 +104,7 @@ def crear_mapa_sucursales_cajeros(sucursales_df, cajeros_df, clientes_df=None):
             icon=folium.Icon(color='blue', icon='info-sign', prefix='glyphicon')
         ).add_to(mapa)
     
-    # Agregamos cajeros como marcadores verdes más pequeños
+    # Agregar cajeros
     for idx, row in cajeros_df.iterrows():
         folium.CircleMarker(
             location=[row['Latitud'], row['Longitud']],
@@ -128,7 +122,7 @@ def crear_mapa_sucursales_cajeros(sucursales_df, cajeros_df, clientes_df=None):
             weight=2
         ).add_to(mapa)
     
-    # Opcionalmente, agregamos clientes como puntos pequeños
+    # Opcionalmente, agregar clientes
     if clientes_df is not None and len(clientes_df) > 0:
         for idx, row in clientes_df.iterrows():
             folium.CircleMarker(
@@ -147,63 +141,38 @@ def crear_mapa_sucursales_cajeros(sucursales_df, cajeros_df, clientes_df=None):
                 weight=1
             ).add_to(mapa)
     
-    # Agregamos una leyenda
-    leyenda = folium.Figure().add_child(folium.LatLngPopup())
-    
     return mapa
 
 
 def crear_mapa_cobertura_clientes(clientes_df, sucursales_df, cajeros_df, 
                                    umbral_sucursal=10.0, umbral_cajero=5.0):
-    """
-    Crea un mapa que muestra qué clientes están cubiertos y cuáles no.
-    
-    Este mapa es muy útil para identificar visualmente las áreas desatendidas.
-    Los clientes se colorean según si están dentro de los umbrales de distancia:
-    - Verde: Cliente bien cubierto (dentro de ambos umbrales)
-    - Amarillo: Cliente parcialmente cubierto
-    - Rojo: Cliente desatendido (fuera de ambos umbrales)
-    
-    Parámetros:
-        clientes_df: DataFrame de clientes (debe tener distancias calculadas)
-        sucursales_df: DataFrame de sucursales
-        cajeros_df: DataFrame de cajeros
-        umbral_sucursal: Distancia máxima a sucursal (km)
-        umbral_cajero: Distancia máxima a cajero (km)
-    
-    Returns:
-        folium.Map: Mapa con clientes coloreados por cobertura
-    """
     from modulos.geoespacial import (
         calcular_distancia_a_sucursal_mas_cercana,
         calcular_distancia_a_cajero_mas_cercano
     )
     
-    # Calculamos las distancias para cada cliente
     clientes = clientes_df.copy()
     clientes = calcular_distancia_a_sucursal_mas_cercana(clientes, sucursales_df)
     clientes = calcular_distancia_a_cajero_mas_cercano(clientes, cajeros_df)
     
-    # Determinamos el estado de cobertura para cada cliente
     def determinar_color_cobertura(row):
         """Determina el color basado en la cobertura del cliente."""
         distancia_sucursal = row['Distancia_a_Sucursal_km'] <= umbral_sucursal
         distancia_cajero = row['Distancia_a_Cajero_km'] <= umbral_cajero
         
         if distancia_sucursal and distancia_cajero:
-            return 'green'  # Bien cubierto
+            return 'green'
         elif distancia_sucursal or distancia_cajero:
-            return 'orange'  # Parcialmente cubierto
+            return 'orange'
         else:
-            return 'red'  # Desatendido
+            return 'red'
     
     clientes['Color_Cobertura'] = clientes.apply(determinar_color_cobertura, axis=1)
     
-    # Centrado del mapa
     centro_lat, centro_lon = calcular_centroide(clientes)
     mapa = crear_mapa_base(centro_lat, centro_lon, zoom=7)
     
-    # Agregamos clientes con colores según cobertura
+    # Agregar clientes con colores según cobertura
     for idx, row in clientes.iterrows():
         color = row['Color_Cobertura']
         folium.CircleMarker(
@@ -224,7 +193,7 @@ def crear_mapa_cobertura_clientes(clientes_df, sucursales_df, cajeros_df,
             weight=2
         ).add_to(mapa)
     
-    # Agregamos sucursales y cajeros de referencia
+    # Agregar sucursales y cajeros como referencia
     for idx, row in sucursales_df.iterrows():
         folium.Marker(
             location=[row['Latitud'], row['Longitud']],
@@ -241,7 +210,6 @@ def crear_mapa_cobertura_clientes(clientes_df, sucursales_df, cajeros_df,
             opacity=0.7
         ).add_to(mapa)
     
-    # Leyenda HTML
     leyenda_html = """
     <div style="position: fixed; 
             bottom: 50px; right: 50px; width: 200px; height: 150px; 
@@ -260,66 +228,195 @@ def crear_mapa_cobertura_clientes(clientes_df, sucursales_df, cajeros_df,
     return mapa
 
 
-# ============================================================================
-# GRÁFICOS CON PLOTLY
-# ============================================================================
+# GRÁFICOS CON PLOTLY CON ANIMACIONES
 
-def crear_grafico_volumen_transacciones(sucursales_df):
-    """
-    Crea un gráfico de barras mostrando el volumen de transacciones por sucursal.
-    
-    Este gráfico es útil para identificar rápidamente qué sucursales
-    son más activas y tienen mayor demanda.
-    
-    Parámetros:
-        sucursales_df: DataFrame de sucursales
-    
-    Returns:
-        plotly.graph_objects.Figure: Gráfico interactivo
-    """
-    # Preparamos los datos
-    datos = sucursales_df.groupby('Tipo de Sucursal').agg({
-        'Volumen de Transacciones (mes)': 'sum',
-        'Número de Empleados': 'sum'
-    }).reset_index()
-    
-    # Creamos el gráfico
-    fig = go.Figure()
-    
-    fig.add_trace(go.Bar(
-        x=datos['Tipo de Sucursal'],
-        y=datos['Volumen de Transacciones (mes)'],
-        name='Transacciones/mes',
-        marker_color='lightblue',
-        text=datos['Volumen de Transacciones (mes)'],
-        textposition='outside'
-    ))
-    
-    fig.update_layout(
-        title="Volumen de Transacciones por Tipo de Sucursal",
-        xaxis_title="Tipo de Sucursal",
-        yaxis_title="Transacciones/mes",
-        hovermode='x unified',
-        template='plotly_white'
+def crear_grafico_barras(datos_df, x_col, y_col, titulo="", 
+                        color_col=None, mostrar_valores=True, animar=True):
+    fig = px.bar(
+        datos_df,
+        x=x_col,
+        y=y_col,
+        color=color_col,
+        title=titulo,
+        color_discrete_sequence=COLORES,
+        template="plotly_white"
     )
     
+    fig.update_traces(
+        marker=dict(line=dict(width=1, color="#ffffff")),
+        textposition="outside" if mostrar_valores else "none",
+        texttemplate="%{y:,.0f}" if mostrar_valores else "",
+        hovertemplate="<b>%{x}</b><br>Valor: %{y:,.0f}<extra></extra>"
+    )
+    
+    if animar:
+        fig.update_layout(
+            transition=dict(duration=800, easing="cubic-in-out"),
+            xaxis=dict(tickangle=-45 if len(datos_df) > 5 else 0),
+            title_font_size=16,
+            title_font_color="#1a365d",
+            height=400
+        )
+    
+    fig = aplicar_tema(fig)
     return fig
 
 
+def crear_grafico_lineas(datos_df, x_col, y_col, titulo="", 
+                        marker_size=6, mostrar_area=False, animar=True):
+    fig = go.Figure()
+    
+    fig.add_trace(go.Scatter(
+        x=datos_df[x_col],
+        y=datos_df[y_col],
+        mode='lines+markers',
+        name='Tendencia',
+        line=dict(
+            color='#2c5aa0',
+            width=3,
+            shape='spline'
+        ),
+        marker=dict(
+            size=marker_size,
+            color='#2c5aa0',
+            symbol='circle',
+            line=dict(color='#ffffff', width=2)
+        ),
+        fill='tozeroy' if mostrar_area else 'none',
+        fillcolor='rgba(44, 90, 160, 0.1)' if mostrar_area else 'rgba(0,0,0,0)',
+        hovertemplate='<b>%{x}</b><br>Valor: %{y:,.0f}<extra></extra>',
+    ))
+    
+    if animar:
+        fig.update_layout(
+            title=titulo,
+            xaxis_title=x_col,
+            yaxis_title=y_col,
+            transition=dict(duration=1000, easing="cubic-in-out"),
+            title_font_size=16,
+            title_font_color="#1a365d",
+            height=400
+        )
+    
+    fig = aplicar_tema(fig)
+    return fig
+
+
+def crear_grafico_scatter(datos_df, x_col, y_col, titulo="", 
+                         size_col=None, color_col=None, animar=True):
+    fig = px.scatter(
+        datos_df,
+        x=x_col,
+        y=y_col,
+        size=size_col,
+        color=color_col,
+        title=titulo,
+        color_discrete_sequence=COLORES,
+        size_max=30,
+        template="plotly_white"
+    )
+    
+    fig.update_traces(
+        marker=dict(
+            line=dict(width=1, color="#ffffff"),
+            opacity=0.8
+        ),
+        hovertemplate="<b>%{x}</b>, %{y:,.0f}<extra></extra>"
+    )
+    
+    if animar:
+        fig.update_layout(
+            transition=dict(duration=1200, easing="elastic-out"),
+            title_font_size=16,
+            title_font_color="#1a365d",
+            height=400
+        )
+    
+    fig = aplicar_tema(fig)
+    return fig
+
+
+def crear_grafico_pie(datos, titulo="", mostrar_porcentajes=True):
+    if isinstance(datos, dict):
+        labels = datos.get("labels", [])
+        values = datos.get("values", [])
+    else:
+        labels = datos.index.tolist()
+        values = datos.values.tolist()
+    
+    fig = go.Figure(data=[go.Pie(
+        labels=labels,
+        values=values,
+        marker=dict(
+            colors=COLORES[:len(labels)],
+            line=dict(color='#ffffff', width=2)
+        ),
+        textinfo="label+percent" if mostrar_porcentajes else "label",
+        textposition="inside",
+        hovertemplate="<b>%{label}</b><br>Valor: %{value}<br>Porcentaje: %{percent}<extra></extra>",
+        sort=False
+    )])
+    
+    fig.update_layout(
+        title=titulo,
+        transition=dict(duration=800, easing="cubic-in-out"),
+        showlegend=True,
+        title_font_size=16,
+        title_font_color="#1a365d",
+        height=400
+    )
+    
+    fig = aplicar_tema(fig)
+    return fig
+
+
+def crear_grafico_heatmap(matriz, etiquetas_x, etiquetas_y, titulo=""):
+    fig = go.Figure(data=go.Heatmap(
+        z=matriz,
+        x=etiquetas_x,
+        y=etiquetas_y,
+        colorscale="Blues",
+        text=np.round(matriz, 2),
+        texttemplate="%{text:.2f}",
+        textfont={"size": 10},
+        hovertemplate="<b>%{y} vs %{x}</b><br>Valor: %{z:.2f}<extra></extra>",
+        colorbar=dict(
+            title="Valor",
+            thickness=20,
+            len=0.7
+        )
+    ))
+    
+    fig.update_layout(
+        title=titulo,
+        xaxis_title="Origen",
+        yaxis_title="Destino",
+        transition=dict(duration=800, easing="cubic-in-out"),
+        title_font_size=16,
+        title_font_color="#1a365d",
+        height=600,
+        width=700
+    )
+    
+    fig = aplicar_tema(fig)
+    return fig
+
+
+def crear_grafico_volumen_transacciones(sucursales_df):
+    datos = sucursales_df.groupby('Tipo de Sucursal').agg({
+        'Volumen de Transacciones (mes)': 'sum'
+    }).reset_index()
+    
+    return crear_grafico_barras(
+        datos,
+        x_col='Tipo de Sucursal',
+        y_col='Volumen de Transacciones (mes)',
+        titulo='Volumen de Transacciones por Tipo de Sucursal',
+        mostrar_valores=True
+    )
+
+
 def crear_grafico_empleados_vs_transacciones(sucursales_df):
-    """
-    Crea un gráfico de dispersión mostrando la relación entre empleados
-    y volumen de transacciones.
-    
-    Este gráfico ayuda a identificar si hay una relación entre cantidad
-    de empleados y productividad (transacciones).
-    
-    Parámetros:
-        sucursales_df: DataFrame de sucursales
-    
-    Returns:
-        plotly.graph_objects.Figure: Gráfico interactivo
-    """
     fig = px.scatter(
         sucursales_df,
         x='Número de Empleados',
@@ -336,27 +433,12 @@ def crear_grafico_empleados_vs_transacciones(sucursales_df):
     )
     
     fig.update_layout(hovermode='closest')
+    fig = aplicar_tema(fig)
     return fig
 
 
 def crear_grafico_productos_por_ubicacion(clientes_df):
-    """
-    Crea un gráfico de barras apiladas mostrando qué productos se adquieren
-    en cada ubicación (basado en ubicación de residencia).
-    
-    Este gráfico es esencial para el marketing dirigido, mostrando
-    patrones de preferencia de productos por región.
-    
-    Parámetros:
-        clientes_df: DataFrame de clientes
-    
-    Returns:
-        plotly.graph_objects.Figure: Gráfico interactivo
-    """
-    # Agrupamos por ubicación y producto
     datos = clientes_df.groupby(['Ubicación de Residencia', 'Productos Financieros Adquiridos']).size().reset_index(name='Cantidad')
-    
-    # Convertimos a un formato más legible para el gráfico
     datos['Ubicación'] = datos['Ubicación de Residencia'].astype(str)
     
     fig = px.bar(
@@ -367,30 +449,19 @@ def crear_grafico_productos_por_ubicacion(clientes_df):
         title='Distribución de Productos Financieros por Ubicación',
         labels={'Cantidad': 'Número de Clientes'},
         template='plotly_white',
-        barmode='stack'
+        barmode='stack',
+        color_discrete_sequence=COLORES
     )
     
     fig.update_layout(
         xaxis_tickangle=-45,
         hovermode='x unified'
     )
-    
+    fig = aplicar_tema(fig)
     return fig
 
 
 def crear_grafico_saldo_promedio_por_producto(clientes_df):
-    """
-    Crea un gráfico mostrando el saldo promedio de cuentas según el producto adquirido.
-    
-    Este gráfico ayuda a identificar qué productos están asociados con
-    clientes más valiosos (con mayor saldo).
-    
-    Parámetros:
-        clientes_df: DataFrame de clientes
-    
-    Returns:
-        plotly.graph_objects.Figure: Gráfico interactivo
-    """
     datos = clientes_df.groupby('Productos Financieros Adquiridos').agg({
         'Saldo Promedio de Cuentas': 'mean',
         'Volumen de Transacciones': 'mean'
@@ -402,7 +473,7 @@ def crear_grafico_saldo_promedio_por_producto(clientes_df):
         x=datos['Productos Financieros Adquiridos'],
         y=datos['Saldo Promedio de Cuentas'],
         name='Saldo Promedio',
-        marker_color='lightgreen',
+        marker_color=COLORES[0],
         text=[f'${x:,.0f}' for x in datos['Saldo Promedio de Cuentas']],
         textposition='outside'
     ))
@@ -415,27 +486,18 @@ def crear_grafico_saldo_promedio_por_producto(clientes_df):
         hovermode='x unified'
     )
     
+    fig = aplicar_tema(fig)
     return fig
 
 
 def crear_grafico_frecuencia_visitas(clientes_df):
-    """
-    Crea un gráfico mostrando la distribución de frecuencia de visitas
-    de los clientes a las sucursales.
-    
-    Parámetros:
-        clientes_df: DataFrame de clientes
-    
-    Returns:
-        plotly.graph_objects.Figure: Gráfico interactivo
-    """
     datos = clientes_df['Frecuencia de Visitas'].value_counts().sort_index()
     
     fig = go.Figure(data=[
         go.Bar(
             x=datos.index,
             y=datos.values,
-            marker_color='steelblue',
+            marker_color=COLORES[0],
             text=datos.values,
             textposition='outside'
         )
@@ -449,73 +511,37 @@ def crear_grafico_frecuencia_visitas(clientes_df):
         hovermode='x unified'
     )
     
+    fig = aplicar_tema(fig)
     return fig
 
 
 def crear_grafico_transacciones_cajeros(cajeros_df):
-    """
-    Crea un gráfico mostrando el volumen de transacciones por cajero automático.
-    
-    Parámetros:
-        cajeros_df: DataFrame de cajeros
-    
-    Returns:
-        plotly.graph_objects.Figure: Gráfico interactivo
-    """
-    # Creamos identidades legibles para los cajeros
-    cajeros_df_copy = cajeros_df.copy()
-    cajeros_df_copy['Cajero_ID'] = [f"Cajero {i+1}" for i in range(len(cajeros_df_copy))]
+    cajeros_copy = cajeros_df.copy()
+    cajeros_copy['Cajero_ID'] = [f"Cajero {i+1}" for i in range(len(cajeros_copy))]
     
     fig = px.bar(
-        cajeros_df_copy,
+        cajeros_copy,
         x='Cajero_ID',
         y='Volumen de Transacciones Diarias',
         color='Tipo de Transacciones',
         title='Volumen de Transacciones Diarias por Cajero Automático',
         labels={'Volumen de Transacciones Diarias': 'Transacciones/día'},
-        template='plotly_white'
+        template='plotly_white',
+        color_discrete_sequence=COLORES
     )
     
     fig.update_layout(hovermode='x unified')
-    
+    fig = aplicar_tema(fig)
     return fig
 
 
 def crear_grafico_matriz_distancias(matriz_distancias, etiquetas=None):
-    """
-    Crea un mapa de calor mostrando la matriz de distancias entre puntos.
-    
-    Esto es útil para optimización logística. Las distancias cortas (oscuras)
-    indican que dos puntos están cerca, mientras que distancias largas (claras)
-    indican que están lejos.
-    
-    Parámetros:
-        matriz_distancias: Array NumPy 2D con distancias
-        etiquetas: Lista de etiquetas para los ejes
-    
-    Returns:
-        plotly.graph_objects.Figure: Heatmap interactivo
-    """
     if etiquetas is None:
         etiquetas = [f"Punto {i+1}" for i in range(len(matriz_distancias))]
     
-    fig = go.Figure(data=go.Heatmap(
-        z=matriz_distancias,
-        x=etiquetas,
-        y=etiquetas,
-        colorscale='Viridis',
-        text=np.round(matriz_distancias, 2),
-        texttemplate='%{text:.2f}',
-        textfont={"size": 10},
-        colorbar=dict(title="Distancia (km)")
-    ))
-    
-    fig.update_layout(
-        title="Matriz de Distancias entre Puntos de Servicio",
-        xaxis_title="Origen",
-        yaxis_title="Destino",
-        height=600,
-        width=700
+    return crear_grafico_heatmap(
+        matriz_distancias,
+        etiquetas_x=etiquetas,
+        etiquetas_y=etiquetas,
+        titulo="Matriz de Distancias entre Puntos de Servicio"
     )
-    
-    return fig

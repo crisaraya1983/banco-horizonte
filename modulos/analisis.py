@@ -21,6 +21,16 @@ from modulos.geoespacial import (
     calcular_centroide_geográfico,
     distancia_haversine
 )
+
+from modulos.componentes import (
+    crear_seccion_encabezado,
+    crear_tarjeta_metrica,
+    crear_tarjeta_informativa,
+    crear_panel_estadisticas,
+    crear_indicador_estado,
+    crear_linea_separadora
+)
+
 from modulos.visualizaciones import (
     crear_mapa_sucursales_cajeros,
     crear_mapa_cobertura_clientes,
@@ -41,8 +51,7 @@ def pagina_analisis_cobertura():
     Análisis de cobertura geográfica de sucursales y cajeros automáticos.
     """
     
-    st.markdown('<div class="main-header">Análisis de Cobertura Geográfica</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Análisis de Cobertura Geográfica")
     
     sucursales = cargar_sucursales()
     cajeros = cargar_cajeros()
@@ -71,8 +80,7 @@ def pagina_analisis_cobertura():
     )
     
     # Métricas principales
-    st.markdown('<div class="section-header">Cobertura General</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Cobertura General")
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -91,8 +99,7 @@ def pagina_analisis_cobertura():
     st.divider()
     
     # Mapas interactivos
-    st.markdown('<div class="section-header">Visualización Geoespacial</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Visualización Geoespacial")
     
     tab1, tab2 = st.tabs(["Distribución de Servicios", "Estado de Cobertura"])
     
@@ -117,8 +124,7 @@ def pagina_analisis_cobertura():
     st.divider()
     
     # Zonas desatendidas
-    st.markdown('<div class="section-header">Zonas Desatendidas</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Zonas Desatendidas")
     
     clientes_analisis = clientes.copy()
     clientes_analisis = calcular_distancia_a_sucursal_mas_cercana(clientes_analisis, sucursales)
@@ -143,21 +149,19 @@ def pagina_analisis_cobertura():
         st.metric("Distancia Promedio", f"{distancia_prom:.2f} km")
     
     if len(desatendidos) > 0:
-        st.markdown("**Clientes en Zonas Desatendidas**")
-        tabla_mostrar = desatendidos[[
-            'Ubicación de Residencia',
-            'Productos Financieros Adquiridos',
-            'Distancia_a_Sucursal_km',
-            'Saldo Promedio de Cuentas'
-        ]].copy()
-        tabla_mostrar.columns = ['Ubicación', 'Producto', 'Distancia (km)', 'Saldo']
+        crear_tarjeta_informativa(
+            titulo="Clientes en Zonas Desatendidas",
+            contenido=f"Se encontraron {len(desatendidos)} clientes sin cobertura adecuada",
+            tipo="warning",
+            icono="⚠️"
+        )
+        tabla_mostrar = desatendidos[['Ubicación de Residencia', 'Distancia_a_Sucursal_km']].copy()
         st.dataframe(tabla_mostrar, use_container_width=True, hide_index=True)
     
-    st.divider()
+    crear_linea_separadora(estilo="subtle")
     
     # Análisis de volumen
-    st.markdown('<div class="section-header">Análisis de Volumen</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="section-header")
     
     col1, col2 = st.columns(2)
     
@@ -177,8 +181,7 @@ def pagina_segmentacion_geografica():
     Segmentación geográfica de clientes y análisis de productos por región.
     """
     
-    st.markdown('<div class="main-header">Segmentación Geográfica</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Segmentación Geográfica")
     
     sucursales = cargar_sucursales()
     cajeros = cargar_cajeros()
@@ -193,8 +196,7 @@ def pagina_segmentacion_geografica():
     kmeans = KMeans(n_clusters=num_zonas, random_state=42, n_init=10)
     clientes['Zona'] = kmeans.fit_predict(coords) + 1
     
-    st.markdown('<div class="section-header">Características por Zona</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Características por Zona")
     
     resumen_zonas = []
     for zona in range(1, num_zonas + 1):
@@ -215,8 +217,7 @@ def pagina_segmentacion_geografica():
     st.divider()
     
     # Mapa de segmentación
-    st.markdown('<div class="section-header">Distribución Espacial de Zonas</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Distribución Espacial de Zonas")
     
     try:
         import folium
@@ -256,8 +257,7 @@ def pagina_segmentacion_geografica():
     st.divider()
     
     # Gráficos de análisis
-    st.markdown('<div class="section-header">Análisis de Productos y Valor</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Análisis de Productos y Valor")
     
     col1, col2 = st.columns(2)
     
@@ -306,13 +306,11 @@ def pagina_optimizacion_logistica():
     Optimización de rutas de mantenimiento para cajeros automáticos.
     """
     
-    st.markdown('<div class="main-header">Optimización Logística</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Optimización Logística")
     
     cajeros = cargar_cajeros()
     
-    st.markdown('<div class="section-header">Resumen de Cajeros</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Resumen de Cajeros")
     
     col1, col2, col3 = st.columns(3)
     
@@ -330,8 +328,7 @@ def pagina_optimizacion_logistica():
     st.divider()
     
     # Matriz de distancias
-    st.markdown('<div class="section-header">Matriz de Distancias</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Matriz de Distancias")
     
     matriz_dist = crear_matriz_distancias(cajeros)
     fig_matriz = crear_grafico_matriz_distancias(
@@ -343,8 +340,7 @@ def pagina_optimizacion_logistica():
     st.divider()
     
     # Carga de trabajo
-    st.markdown('<div class="section-header">Carga de Trabajo por Cajero</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Carga de Trabajo por Cajero")
     
     fig_cajeros = crear_grafico_transacciones_cajeros(cajeros)
     st.plotly_chart(fig_cajeros, use_container_width=True)
@@ -352,8 +348,7 @@ def pagina_optimizacion_logistica():
     st.divider()
     
     # Ruta propuesta
-    st.markdown('<div class="section-header">Ruta Óptima Propuesta</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Ruta Óptima Propuesta")
     
     visitados = set()
     posicion_actual = 0
@@ -401,16 +396,14 @@ def pagina_marketing_dirigido():
     Análisis de marketing dirigido por geolocalización.
     """
     
-    st.markdown('<div class="main-header">Marketing Dirigido por Geolocalización</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Marketing Dirigido por Geolocalización")
     
     clientes = cargar_clientes()
     sucursales = cargar_sucursales()
     
     clientes = calcular_distancia_a_sucursal_mas_cercana(clientes, sucursales)
     
-    st.markdown('<div class="section-header">Análisis de Valor de Clientes</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Análisis de Valor de Clientes")
     
     clientes['Segmento_Valor'] = pd.cut(
         clientes['Saldo Promedio de Cuentas'],
@@ -428,8 +421,7 @@ def pagina_marketing_dirigido():
     
     st.divider()
     
-    st.markdown('<div class="section-header">Distribución de Clientes</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Distribución de Clientes")
     
     col1, col2 = st.columns(2)
     
@@ -455,8 +447,7 @@ def pagina_marketing_dirigido():
     
     st.divider()
     
-    st.markdown('<div class="section-header">Proximidad vs Valor de Cliente</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Proximidad vs Valor de Cliente")
     
     fig_prox_valor = px.scatter(
         clientes,
@@ -481,8 +472,7 @@ def pagina_prediccion_demanda():
     Predicción de demanda basada en factores geoespaciales.
     """
     
-    st.markdown('<div class="main-header">Predicción de Demanda</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Predicción de Demanda")
     
     clientes = cargar_clientes()
     sucursales = cargar_sucursales()
@@ -491,8 +481,7 @@ def pagina_prediccion_demanda():
     clientes = calcular_distancia_a_sucursal_mas_cercana(clientes, sucursales)
     clientes = calcular_distancia_a_cajero_mas_cercano(clientes, cajeros)
     
-    st.markdown('<div class="section-header">Modelo Predictivo</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Modelo Predictivo")
     
     X = clientes[[
         'Distancia_a_Sucursal_km',
@@ -514,8 +503,7 @@ def pagina_prediccion_demanda():
     
     st.divider()
     
-    st.markdown('<div class="section-header">Importancia de Factores</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Importancia de Factores")
     
     feature_names = ['Dist. Sucursal', 'Dist. Cajero', 'Frecuencia Visitas', 'Saldo Promedio']
     importancia = np.abs(modelo.coef_)
@@ -533,8 +521,7 @@ def pagina_prediccion_demanda():
     
     st.divider()
     
-    st.markdown('<div class="section-header">Predicción para Nueva Ubicación</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Predicción para Nueva Ubicación")
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -568,8 +555,7 @@ def pagina_analisis_riesgos():
     Análisis de riesgos geoespaciales.
     """
     
-    st.markdown('<div class="main-header">Análisis de Riesgos</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Análisis de Riesgos")
     
     clientes = cargar_clientes()
     sucursales = cargar_sucursales()
@@ -579,8 +565,7 @@ def pagina_analisis_riesgos():
     kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
     clientes['Zona'] = kmeans.fit_predict(coords)
     
-    st.markdown('<div class="section-header">Concentración de Clientes</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Concentración de Clientes")
     
     clientes_por_zona = clientes['Zona'].value_counts().sort_values(ascending=False)
     concentracion_top3 = (clientes_por_zona.head(3).sum() / len(clientes)) * 100
@@ -613,8 +598,7 @@ def pagina_analisis_riesgos():
     
     st.divider()
     
-    st.markdown('<div class="section-header">Concentración de Valor</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Concentración de Valor")
     
     saldo_por_zona = clientes.groupby('Zona')['Saldo Promedio de Cuentas'].sum().sort_values(ascending=False)
     valor_top3 = (saldo_por_zona.head(3).sum() / saldo_por_zona.sum()) * 100
@@ -636,8 +620,7 @@ def pagina_analisis_riesgos():
     
     st.divider()
     
-    st.markdown('<div class="section-header">Dependencia por Sucursal</div>', 
-                unsafe_allow_html=True)
+    crear_seccion_encabezado(titulo="Dependencia por Sucursal")
     
     clientes = calcular_distancia_a_sucursal_mas_cercana(clientes, sucursales)
     

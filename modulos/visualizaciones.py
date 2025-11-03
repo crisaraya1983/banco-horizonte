@@ -96,11 +96,12 @@ def crear_mapa_sucursales_cajeros(sucursales_df, cajeros_df, clientes_df=None):
         folium.Marker(
             location=[row['Latitud'], row['Longitud']],
             popup=f"""
-            <b>{row['Tipo de Sucursal']}</b><br>
+            <b>{row['Nombre']}</b><br>
+            Tipo: {row['Tipo de Sucursal']}<br>
             Transacciones/mes: {row['Volumen de Transacciones (mes)']}<br>
             Empleados: {row['Número de Empleados']}
             """,
-            tooltip=f"Sucursal {row['Tipo de Sucursal']}",
+            tooltip=row['Nombre'],
             icon=folium.Icon(color='blue', icon='info-sign', prefix='glyphicon')
         ).add_to(mapa)
     
@@ -197,9 +198,10 @@ def crear_mapa_cobertura_clientes(clientes_df, sucursales_df, cajeros_df,
     for idx, row in sucursales_df.iterrows():
         folium.Marker(
             location=[row['Latitud'], row['Longitud']],
-            popup=f"Sucursal: {row['Tipo de Sucursal']}",
+            popup=f"Sucursal: {row['Nombre']}",
             icon=folium.Icon(color='blue', icon='bank', prefix='fa'),
-            opacity=0.7
+            opacity=0.7,
+            tooltip=row['Nombre']
         ).add_to(mapa)
     
     for idx, row in cajeros_df.iterrows():

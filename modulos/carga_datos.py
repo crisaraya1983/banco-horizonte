@@ -14,16 +14,22 @@ def cargar_sucursales():
         sep=";"
     )
     
-    # Parseamos la ubicación de string a tupla de coordenadas
+    # Transformación 1: Parsear la ubicación de string a coordenadas numéricas
     df[["Latitud", "Longitud"]] = df["Ubicación"].str.strip("()").str.split(", ", expand=True)
     df["Latitud"] = pd.to_numeric(df["Latitud"])
     df["Longitud"] = pd.to_numeric(df["Longitud"])
+    
+    df["Nombre"] = (
+        df["Tipo de Sucursal"] + " " +
+        df.groupby("Tipo de Sucursal").cumcount().add(1).astype(str)
+    )
     
     return df
 
 
 @st.cache_data
 def cargar_cajeros():
+
     df = pd.read_csv(
         RUTA_DATOS / "cajeros.csv",
         sep=";"
@@ -37,6 +43,7 @@ def cargar_cajeros():
 
 @st.cache_data
 def cargar_clientes():
+
     df = pd.read_csv(
         RUTA_DATOS / "clientes.csv",
         sep=";"
@@ -50,6 +57,7 @@ def cargar_clientes():
 
 @st.cache_data
 def cargar_productos():
+
     df = pd.read_csv(
         RUTA_DATOS / "productos.csv",
         sep=";"
@@ -60,6 +68,7 @@ def cargar_productos():
 
 @st.cache_data
 def cargar_todos_los_datos():
+
     sucursales = cargar_sucursales()
     cajeros = cargar_cajeros()
     clientes = cargar_clientes()

@@ -19,6 +19,7 @@ from modulos.analisis import (
     pagina_prediccion_demanda,
     pagina_analisis_riesgos
 )
+
 from modulos.componentes import inicializar_componentes
 
 

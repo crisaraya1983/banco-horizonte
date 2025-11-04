@@ -60,15 +60,6 @@ def inyectar_estilos_globales():
 def crear_seccion_encabezado(titulo: str, descripcion: str = "", 
                              badge: Optional[str] = None, 
                              badge_color: str = "primary"):
-    """
-    Crea un encabezado de sección profesional con información adicional.
-    
-    Parámetros:
-        titulo: Título principal de la sección
-        descripcion: Texto descriptivo (opcional)
-        badge: Etiqueta de estado (ej: "Nuevo", "Mejorado") (opcional)
-        badge_color: Color del badge ('primary', 'success', 'warning', 'error')
-    """
     color_badges = {
         "primary": "#2c5aa0",
         "success": "#27ae60",

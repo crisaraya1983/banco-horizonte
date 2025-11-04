@@ -6,6 +6,11 @@ import pandas as pd
 import numpy as np
 from math import radians, cos, sin, asin, sqrt
 
+from modulos.geoespacial import (
+        calcular_distancia_a_sucursal_mas_cercana,
+        calcular_distancia_a_cajero_mas_cercano
+    )
+
 
 # CONFIGURACIÓN BASE DE PLOTLY
 
@@ -147,10 +152,6 @@ def crear_mapa_sucursales_cajeros(sucursales_df, cajeros_df, clientes_df=None):
 
 def crear_mapa_cobertura_clientes(clientes_df, sucursales_df, cajeros_df, 
                                    umbral_sucursal=10.0, umbral_cajero=5.0):
-    from modulos.geoespacial import (
-        calcular_distancia_a_sucursal_mas_cercana,
-        calcular_distancia_a_cajero_mas_cercano
-    )
     
     clientes = clientes_df.copy()
     clientes = calcular_distancia_a_sucursal_mas_cercana(clientes, sucursales_df)
@@ -547,3 +548,196 @@ def crear_grafico_matriz_distancias(matriz_distancias, etiquetas=None):
         etiquetas_y=etiquetas,
         titulo="Matriz de Distancias entre Puntos de Servicio"
     )
+
+
+# FUNCIONES PARA ANÁLISIS DE COBERTURA
+
+def crear_mapa_cobertura_con_radios(datos_ubicaciones, distancia_km=10.0):
+ 
+    if len(datos_ubicaciones) == 0:
+        return None
+    
+    centro_lat = datos_ubicaciones['Latitud'].mean()
+    centro_lon = datos_ubicaciones['Longitud'].mean()
+    
+    mapa = folium.Map(
+        location=[centro_lat, centro_lon],
+        zoom_start=7,
+        tiles="OpenStreetMap",
+        prefer_canvas=True
+    )
+    
+    colores = ['#2c5aa0', '#27ae60', '#f39c12', '#e74c3c', '#9b59b6']
+    
+    for idx, row in datos_ubicaciones.iterrows():
+        color = colores[idx % len(colores)]
+        
+        # Circulo de cobertura
+        folium.Circle(
+            location=[row['Latitud'], row['Longitud']],
+            radius=distancia_km * 1000,
+            popup=f"<b>{row['Nombre']}</b><br>Radio: {distancia_km} km",
+            tooltip=f"{row['Nombre']} - Cobertura {distancia_km}km",
+            color=color,
+            fill=True,
+            fillColor=color,
+            fillOpacity=0.15,
+            weight=2,
+            dashArray='5, 5'
+        ).add_to(mapa)
+        
+        # Marcador central
+        folium.CircleMarker(
+            location=[row['Latitud'], row['Longitud']],
+            radius=8,
+            popup=f"<b>{row['Nombre']}</b>",
+            tooltip=row['Nombre'],
+            color='white',
+            fill=True,
+            fillColor=color,
+            fillOpacity=0.9,
+            weight=3
+        ).add_to(mapa)
+        
+        # Etiqueta
+        folium.Marker(
+            location=[row['Latitud'], row['Longitud']],
+            icon=folium.DivIcon(html=f"""
+                <div style="font-size: 12px; font-weight: bold; color: {color}; 
+                            background-color: white; padding: 5px 10px; 
+                            border-radius: 5px; border: 2px solid {color};
+                            white-space: nowrap;">
+                    {row['Nombre']}
+                </div>
+            """)
+        ).add_to(mapa)
+    
+    return mapa
+
+
+def crear_grafico_concentracion_clientes(datos_consolidados):
+
+    # Agrupar por ubicación (sucursal) y sumar clientes
+    concentracion = datos_consolidados.groupby('Nombre').agg({
+        'Numero_Clientes_Producto': 'sum'
+    }).reset_index().sort_values('Numero_Clientes_Producto', ascending=False)
+    
+    concentracion.columns = ['Sucursal', 'Total_Clientes']
+    
+    fig = px.bar(
+        concentracion,
+        x='Sucursal',
+        y='Total_Clientes',
+        title='Concentración de Clientes por Sucursal',
+        labels={'Total_Clientes': 'Cantidad de Clientes', 'Sucursal': 'Sucursal'},
+        template='plotly_white',
+        color='Total_Clientes',
+        color_continuous_scale='Blues'
+    )
+    
+    fig.update_traces(
+        textposition='outside',
+        texttemplate='%{y:,.0f}',
+        hovertemplate='<b>%{x}</b><br>Clientes: %{y:,.0f}<extra></extra>'
+    )
+    
+    fig.update_layout(
+        xaxis_tickangle=-45,
+        height=400,
+        showlegend=False
+    )
+    
+    fig = aplicar_tema(fig)
+    return fig
+
+
+def crear_grafico_transacciones_por_ubicacion(datos_consolidados):
+ 
+    # Agrupar por ubicación y sumar transacciones
+    transacciones = datos_consolidados.groupby('Nombre').agg({
+        'Volumen_Transacciones_Sucursal': 'first',
+        'Volumen_Transacciones_Cajero_Diarias': 'first'
+    }).reset_index()
+    
+    # Convertir transacciones diarias del cajero a mensuales
+    transacciones['Transacciones_Cajero_Mensuales'] = transacciones['Volumen_Transacciones_Cajero_Diarias'] * 22
+    transacciones['Total_Transacciones'] = (
+        transacciones['Volumen_Transacciones_Sucursal'] + 
+        transacciones['Transacciones_Cajero_Mensuales']
+    )
+    
+    transacciones = transacciones[['Nombre', 'Total_Transacciones']].sort_values(
+        'Total_Transacciones', ascending=False
+    )
+    transacciones.columns = ['Sucursal', 'Transacciones_Mensuales']
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        x=transacciones['Sucursal'],
+        y=transacciones['Transacciones_Mensuales'],
+        marker=dict(
+            color=transacciones['Transacciones_Mensuales'],
+            colorscale='Greens',
+            showscale=False,
+            line=dict(color='white', width=1)
+        ),
+        text=transacciones['Transacciones_Mensuales'],
+        textposition='outside',
+        texttemplate='%{text:,.0f}',
+        hovertemplate='<b>%{x}</b><br>Transacciones/mes: %{y:,.0f}<extra></extra>',
+        name='Transacciones'
+    ))
+    
+    fig.update_layout(
+        title='Volumen de Transacciones Mensuales por Ubicación',
+        xaxis_title='Sucursal',
+        yaxis_title='Transacciones/mes',
+        xaxis_tickangle=-45,
+        template='plotly_white',
+        height=400,
+        showlegend=False
+    )
+    
+    fig = aplicar_tema(fig)
+    return fig
+
+
+def crear_grafico_comparativa_cobertura_clientes(datos_consolidados, distancia_km=10.0):
+
+    # Agrupar datos por sucursal
+    comparativa = datos_consolidados.groupby('Nombre').agg({
+        'Numero_Clientes_Producto': 'sum',
+        'Volumen_Transacciones_Sucursal': 'first',
+        'Número de Empleados': 'first'
+    }).reset_index()
+    
+    comparativa.columns = ['Sucursal', 'Clientes', 'Transacciones', 'Empleados']
+    
+    # Calcular área de cobertura (simplificado como círculo)
+    area_cobertura = (3.14159 * distancia_km ** 2)
+    comparativa['Densidad_Clientes'] = comparativa['Clientes'] / area_cobertura
+    
+    fig = px.scatter(
+        comparativa,
+        x='Transacciones',
+        y='Clientes',
+        size='Empleados',
+        hover_name='Sucursal',
+        title='Relación: Clientes vs Transacciones por Sucursal',
+        labels={
+            'Transacciones': 'Transacciones/mes',
+            'Clientes': 'Cantidad de Clientes'
+        },
+        template='plotly_white',
+        color_discrete_sequence=[COLORES[0]]
+    )
+    
+    fig.update_traces(
+        marker=dict(opacity=0.7, line=dict(width=2, color='white')),
+        hovertemplate='<b>%{hovertext}</b><br>Transacciones: %{x:,.0f}<br>Clientes: %{y:,.0f}<extra></extra>'
+    )
+    
+    fig.update_layout(height=400)
+    fig = aplicar_tema(fig)
+    return fig

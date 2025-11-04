@@ -8,7 +8,8 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 from modulos.carga_datos import (
-    cargar_sucursales, cargar_cajeros, cargar_clientes, cargar_productos
+    cargar_sucursales, cargar_cajeros, cargar_clientes, cargar_productos,
+    obtener_datos_consolidados
 )
 from modulos.geoespacial import (
     calcular_cobertura_geográfica,
@@ -34,6 +35,10 @@ from modulos.componentes import (
 from modulos.visualizaciones import (
     crear_mapa_sucursales_cajeros,
     crear_mapa_cobertura_clientes,
+    crear_mapa_cobertura_con_radios,
+    crear_grafico_concentracion_clientes,
+    crear_grafico_transacciones_por_ubicacion,
+    crear_grafico_comparativa_cobertura_clientes,
     crear_grafico_volumen_transacciones,
     crear_grafico_empleados_vs_transacciones,
     crear_grafico_productos_por_ubicacion,
@@ -44,134 +49,190 @@ from modulos.visualizaciones import (
 )
 
 
-# ANÁLISIS DE COBERTURA GEOGRÁFICA
+# PÁGINA 1: ANÁLISIS DE COBERTURA GEOGRÁFICA
 
 def pagina_analisis_cobertura():
     """
-    Análisis de cobertura geográfica de sucursales y cajeros automáticos.
+    Página principal de análisis de cobertura geográfica.
+    Analiza la cobertura de sucursales y cajeros automáticos en el territorio.
     """
     
-    crear_seccion_encabezado(titulo="Análisis de Cobertura Geográfica")
+    # Cargar datos consolidados
+    datos_consolidados = obtener_datos_consolidados()
     
-    sucursales = cargar_sucursales()
-    cajeros = cargar_cajeros()
-    clientes = cargar_clientes()
-    productos = cargar_productos()
+    # Obtener ubicaciones únicas de sucursales
+    ubicaciones_sucursales = datos_consolidados[
+        ['Nombre', 'Latitud', 'Longitud', 'Tipo de Sucursal', 
+         'Número de Empleados', 'Volumen_Transacciones_Sucursal']
+    ].drop_duplicates(subset=['Nombre']).reset_index(drop=True)
     
-    # Controles
-    col1, col2 = st.columns(2)
     
-    with col1:
-        umbral_sucursal = st.slider(
-            "Distancia máxima a Sucursal (km)",
-            min_value=1.0, max_value=20.0, value=10.0, step=0.5
-        )
+    # SECCIÓN 1: MAPA DE COBERTURA CON RADIOS
     
-    with col2:
-        umbral_cajero = st.slider(
-            "Distancia máxima a Cajero (km)",
-            min_value=1.0, max_value=15.0, value=5.0, step=0.5
-        )
-    
-    cobertura = calcular_cobertura_geográfica(
-        clientes, cajeros, sucursales,
-        umbral_sucursal=umbral_sucursal,
-        umbral_cajero=umbral_cajero
+    crear_seccion_encabezado(
+        titulo="Mapa de Cobertura de Sucursales y Cajeros"
     )
     
-    # Métricas principales
-    crear_seccion_encabezado(titulo="Cobertura General")
-    
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2 = st.columns([3, 1])
     
     with col1:
-        st.metric("Cobertura Sucursales", f"{cobertura['cobertura_sucursales_pct']:.1f}%")
+        distancia_cobertura = st.slider(
+            "Radio de cobertura (km)",
+            min_value=1.0,
+            max_value=30.0,
+            value=10.0,
+            step=0.5,
+            help="Selecciona el radio de cobertura para cada sucursal"
+        )
     
     with col2:
-        st.metric("Cobertura Cajeros", f"{cobertura['cobertura_cajeros_pct']:.1f}%")
+        st.info(
+            f"📍 El mapa muestra {len(ubicaciones_sucursales)} sucursales con un radio "
+            f"de cobertura de {distancia_cobertura} km"
+        )
     
-    with col3:
-        st.metric("Cobertura Completa", f"{cobertura['cobertura_completa_pct']:.1f}%")
-    
-    with col4:
-        st.metric("Clientes Desatendidos", cobertura['clientes_sin_cobertura_completa'])
+    try:
+        mapa_cobertura = crear_mapa_cobertura_con_radios(
+            ubicaciones_sucursales,
+            distancia_km=distancia_cobertura
+        )
+        st.components.v1.html(mapa_cobertura._repr_html_(), height=600, width=None)
+    except Exception as e:
+        st.error(f"Error al generar el mapa: {e}")
     
     st.divider()
     
-    # Mapas interactivos
-    crear_seccion_encabezado(titulo="Visualización Geoespacial")
+    # SECCIÓN 2: ANÁLISIS DE CONCENTRACIÓN DE CLIENTES
     
-    tab1, tab2 = st.tabs(["Distribución de Servicios", "Estado de Cobertura"])
-    
-    with tab1:
-        try:
-            mapa1 = crear_mapa_sucursales_cajeros(sucursales, cajeros, clientes)
-            st.components.v1.html(mapa1._repr_html_(), height=600, width=None)
-        except Exception as e:
-            st.error(f"Error: {e}")
-    
-    with tab2:
-        try:
-            mapa2 = crear_mapa_cobertura_clientes(
-                clientes, sucursales, cajeros,
-                umbral_sucursal=umbral_sucursal,
-                umbral_cajero=umbral_cajero
-            )
-            st.components.v1.html(mapa2._repr_html_(), height=600, width=None)
-        except Exception as e:
-            st.error(f"Error: {e}")
-    
-    st.divider()
-    
-    # Zonas desatendidas
-    crear_seccion_encabezado(titulo="Zonas Desatendidas")
-    
-    clientes_analisis = clientes.copy()
-    clientes_analisis = calcular_distancia_a_sucursal_mas_cercana(clientes_analisis, sucursales)
-    clientes_analisis = calcular_distancia_a_cajero_mas_cercano(clientes_analisis, cajeros)
-    
-    desatendidos = identificar_zonas_desatendidas(
-        clientes_analisis, sucursales, 
-        umbral_km=umbral_sucursal
+    crear_seccion_encabezado(
+        titulo="Análisis de Concentración de Clientes",
+        descripcion="Distribución de clientes por sucursal"
     )
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric("Clientes Desatendidos", len(desatendidos))
-    
-    with col2:
-        porcentaje = (len(desatendidos) / len(clientes)) * 100 if len(clientes) > 0 else 0
-        st.metric("Porcentaje", f"{porcentaje:.1f}%")
-    
-    with col3:
-        distancia_prom = desatendidos['Distancia_a_Sucursal_km'].mean() if len(desatendidos) > 0 else 0
-        st.metric("Distancia Promedio", f"{distancia_prom:.2f} km")
-    
-    if len(desatendidos) > 0:
-        crear_tarjeta_informativa(
-            titulo="Clientes en Zonas Desatendidas",
-            contenido=f"Se encontraron {len(desatendidos)} clientes sin cobertura adecuada",
-            tipo="warning",
-            icono="⚠️"
-        )
-        tabla_mostrar = desatendidos[['Ubicación de Residencia', 'Distancia_a_Sucursal_km']].copy()
-        st.dataframe(tabla_mostrar, use_container_width=True, hide_index=True)
-    
-    crear_linea_separadora(estilo="subtle")
-    
-    # Análisis de volumen
-    crear_seccion_encabezado(titulo="section-header")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        fig_vol = crear_grafico_volumen_transacciones(sucursales)
-        st.plotly_chart(fig_vol, use_container_width=True)
+        try:
+            fig_concentracion = crear_grafico_concentracion_clientes(datos_consolidados)
+            st.plotly_chart(fig_concentracion, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error en gráfico de concentración: {e}")
     
     with col2:
-        fig_emp = crear_grafico_empleados_vs_transacciones(sucursales)
-        st.plotly_chart(fig_emp, use_container_width=True)
+        # Estadísticas de concentración
+        concentracion_stats = datos_consolidados.groupby('Nombre').agg({
+            'Numero_Clientes_Producto': 'sum'
+        }).reset_index()
+        concentracion_stats.columns = ['Sucursal', 'Total_Clientes']
+        concentracion_stats = concentracion_stats.sort_values('Total_Clientes', ascending=False)
+        
+        st.metric(
+            label="Sucursal con Mayor Concentración",
+            value=concentracion_stats.iloc[0]['Sucursal'],
+            delta=f"{int(concentracion_stats.iloc[0]['Total_Clientes'])} clientes"
+        )
+        
+        st.metric(
+            label="Total de Clientes",
+            value=f"{int(concentracion_stats['Total_Clientes'].sum()):,}"
+        )
+        
+        st.metric(
+            label="Promedio por Sucursal",
+            value=f"{int(concentracion_stats['Total_Clientes'].mean()):,}"
+        )
+        
+        # Tabla de estadísticas
+        st.markdown("**Detalle por Sucursal**")
+        st.dataframe(concentracion_stats, use_container_width=True, hide_index=True)
+    
+    st.divider()
+    
+    # SECCIÓN 3: ANÁLISIS DE VOLUMEN DE TRANSACCIONES
+    
+    crear_seccion_encabezado(
+        titulo="Volumen de Transacciones por Ubicación",
+        descripcion="Análisis del movimiento transaccional en cada sucursal"
+    )
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        try:
+            fig_transacciones = crear_grafico_transacciones_por_ubicacion(datos_consolidados)
+            st.plotly_chart(fig_transacciones, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error en gráfico de transacciones: {e}")
+    
+    with col2:
+        # Estadísticas de transacciones
+        transacciones_stats = datos_consolidados.groupby('Nombre').agg({
+            'Volumen_Transacciones_Sucursal': 'first',
+            'Volumen_Transacciones_Cajero_Diarias': 'first'
+        }).reset_index()
+        
+        transacciones_stats['Transacciones_Cajero_Mensuales'] = (
+            transacciones_stats['Volumen_Transacciones_Cajero_Diarias'] * 22
+        )
+        transacciones_stats['Total_Transacciones'] = (
+            transacciones_stats['Volumen_Transacciones_Sucursal'] + 
+            transacciones_stats['Transacciones_Cajero_Mensuales']
+        )
+        
+        transacciones_stats = transacciones_stats.sort_values(
+            'Total_Transacciones', ascending=False
+        )
+        
+        st.metric(
+            label="Sucursal con Mayor Volumen",
+            value=transacciones_stats.iloc[0]['Nombre'],
+            delta=f"{int(transacciones_stats.iloc[0]['Total_Transacciones']):,} transacciones/mes"
+        )
+        
+        st.metric(
+            label="Total Transacciones/mes",
+            value=f"{int(transacciones_stats['Total_Transacciones'].sum()):,}"
+        )
+        
+        st.metric(
+            label="Promedio por Sucursal",
+            value=f"{int(transacciones_stats['Total_Transacciones'].mean()):,}"
+        )
+        
+        # Tabla de estadísticas
+        st.markdown("**Detalle de Transacciones**")
+        tabla_transacciones = transacciones_stats[[
+            'Nombre', 
+            'Volumen_Transacciones_Sucursal',
+            'Transacciones_Cajero_Mensuales',
+            'Total_Transacciones'
+        ]].copy()
+        tabla_transacciones.columns = [
+            'Sucursal',
+            'Sucursal/mes',
+            'Cajero/mes',
+            'Total/mes'
+        ]
+        st.dataframe(tabla_transacciones, use_container_width=True, hide_index=True)
+    
+    st.divider()
+    
+    # SECCIÓN 4: COMPARATIVA COBERTURA VS CLIENTES
+    
+    crear_seccion_encabezado(
+        titulo="Análisis: Cobertura vs Concentración de Clientes",
+        descripcion="Relación entre transacciones y clientes por sucursal"
+    )
+    
+    try:
+        fig_comparativa = crear_grafico_comparativa_cobertura_clientes(
+            datos_consolidados, 
+            distancia_km=distancia_cobertura
+        )
+        st.plotly_chart(fig_comparativa, use_container_width=True)
+    except Exception as e:
+        st.error(f"Error en gráfico de comparativa: {e}")
+
 
 
 # PÁGINA 2: SEGMENTACIÓN GEOGRÁFICA

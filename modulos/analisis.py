@@ -403,11 +403,6 @@ def pagina_segmentacion_geografica():
 # OPTIMIZACIÓN LOGÍSTICA
 
 def pagina_optimizacion_logistica():
-
-    crear_seccion_encabezado(
-        titulo="Optimización Logística de Cajeros Automáticos",
-        descripcion="Análisis de distribución y rutas óptimas para mantenimiento y reposición"
-    )
     
     sucursales = cargar_sucursales()
     cajeros = cargar_cajeros()
@@ -427,21 +422,6 @@ def pagina_optimizacion_logistica():
     with col3:
         tipos_transacciones = cajeros['Tipo de Transacciones'].nunique()
         st.metric("Tipos de Transacciones", tipos_transacciones)
-    
-    # Mostrar detalle de tipos de transacciones
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        tipos_dist = cajeros['Tipo de Transacciones'].value_counts()
-        st.markdown("**Distribución por Tipo:**")
-        for tipo, cantidad in tipos_dist.items():
-            st.write(f"• {tipo}: {cantidad} cajeros")
-    
-    with col2:
-        st.markdown("**Volumen por Tipo:**")
-        vol_por_tipo = cajeros.groupby('Tipo de Transacciones')['Volumen de Transacciones Diarias'].sum()
-        for tipo, volumen in vol_por_tipo.items():
-            st.write(f"• {tipo}: {int(volumen):,} transacciones/día")
     
     st.divider()
     

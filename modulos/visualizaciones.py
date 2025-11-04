@@ -907,51 +907,6 @@ def crear_mapa_segmentacion_geografica(datos_consolidados):
             """)
         ).add_to(mapa)
     
-    # Agregar leyenda
-    legend_html = """
-    <div style="position: fixed; 
-            bottom: 50px; right: 50px; width: 280px; 
-            background-color: white; border: 2px solid #2c5aa0; 
-            border-radius: 8px; z-index: 9999; font-size: 13px; padding: 15px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
-        <h4 style="margin: 0 0 10px 0; color: #2c5aa0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
-            Leyenda de Segmentación
-        </h4>
-        
-        <p style="margin: 8px 0; font-weight: 600;">📊 Tamaño del Marcador:</p>
-        <p style="margin: 3px 0 8px 15px; font-size: 12px; color: #718096;">
-            Proporcional a cantidad de clientes atendidos
-        </p>
-        
-        <p style="margin: 8px 0; font-weight: 600;">🎨 Color del Marcador:</p>
-        <div style="margin-left: 15px; font-size: 12px;">
-            <p style="margin: 3px 0;">
-                <span style="display: inline-block; width: 16px; height: 16px; 
-                             background-color: #e74c3c; border-radius: 50%; 
-                             vertical-align: middle; margin-right: 8px;"></span>
-                Volumen Bajo de Transacciones
-            </p>
-            <p style="margin: 3px 0;">
-                <span style="display: inline-block; width: 16px; height: 16px; 
-                             background-color: #f39c12; border-radius: 50%; 
-                             vertical-align: middle; margin-right: 8px;"></span>
-                Volumen Medio de Transacciones
-            </p>
-            <p style="margin: 3px 0;">
-                <span style="display: inline-block; width: 16px; height: 16px; 
-                             background-color: #27ae60; border-radius: 50%; 
-                             vertical-align: middle; margin-right: 8px;"></span>
-                Volumen Alto de Transacciones
-            </p>
-        </div>
-        
-        <hr style="margin: 10px 0; border: 1px solid #e2e8f0;">
-        <p style="margin: 5px 0; font-size: 11px; color: #718096;">
-            💡 <b>Análisis:</b> Busca areas con marcadores grandes pero color rojo/amarillo = oportunidad de expandir
-        </p>
-    </div>
-    """
-    mapa.get_root().html.add_child(folium.Element(legend_html))
     
     return mapa, sucursales_data
 
@@ -1094,56 +1049,5 @@ def crear_mapa_rutas_mantenimiento(sucursales_df, rutas_df):
             tooltip=f"{ruta['Distancia_km']:.2f} km"
         ).add_to(mapa)
     
-    # Leyenda
-    legend_html = """
-    <div style="position: fixed; 
-            bottom: 50px; right: 50px; width: 280px; 
-            background-color: white; border: 2px solid #2c5aa0; 
-            border-radius: 8px; z-index: 9999; font-size: 13px; padding: 15px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
-        <h4 style="margin: 0 0 10px 0; color: #2c5aa0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
-            Leyenda de Rutas
-        </h4>
-        
-        <div style="margin: 8px 0;">
-            <p style="margin: 5px 0;">
-                <i class="fa fa-home" style="color: #2c5aa0; font-size: 16px;"></i>
-                <b style="margin-left: 8px;">Sucursal Principal</b>
-            </p>
-            <p style="margin: 3px 0 8px 24px; font-size: 11px; color: #718096;">
-                Punto de salida para mantenimiento
-            </p>
-        </div>
-        
-        <div style="margin: 8px 0;">
-            <p style="margin: 5px 0;">
-                <span style="display: inline-block; width: 16px; height: 16px; 
-                             background-color: #27ae60; border-radius: 50%; 
-                             vertical-align: middle;"></span>
-                <b style="margin-left: 8px;">Sucursal Secundaria</b>
-            </p>
-            <p style="margin: 3px 0 8px 24px; font-size: 11px; color: #718096;">
-                Recibe mantenimiento
-            </p>
-        </div>
-        
-        <div style="margin: 8px 0;">
-            <p style="margin: 5px 0;">
-                <span style="display: inline-block; width: 30px; height: 3px; 
-                             background-color: #f39c12; vertical-align: middle;"></span>
-                <b style="margin-left: 8px;">Ruta de Mantenimiento</b>
-            </p>
-            <p style="margin: 3px 0 8px 24px; font-size: 11px; color: #718096;">
-                Muestra distancia en km
-            </p>
-        </div>
-        
-        <hr style="margin: 10px 0; border: 1px solid #e2e8f0;">
-        <p style="margin: 5px 0; font-size: 11px; color: #718096;">
-            💡 <b>Clic</b> en marcadores para ver detalles
-        </p>
-    </div>
-    """
-    mapa.get_root().html.add_child(folium.Element(legend_html))
     
     return mapa

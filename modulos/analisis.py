@@ -49,7 +49,7 @@ from modulos.visualizaciones import (
     crear_grafico_matriz_distancias,
     crear_grafico_transacciones_cajeros_por_tipo,
     crear_mapa_segmentacion_geografica,
-    crear_mapa_rutas_mantenimiento  
+    crear_mapa_rutas_mantenimiento
 )
 
 
@@ -467,12 +467,24 @@ def pagina_optimizacion_logistica():
     col1, col2 = st.columns([2, 1])
     
     with col1:
+        # Tabla sin columnas de tipo
         st.dataframe(
-            rutas_optimas[['Sucursal_Origen', 'Tipo_Origen', 'Sucursal_Destino', 
-                          'Tipo_Destino', 'Distancia_km', 'Tiempo_Estimado_min']],
+            rutas_optimas[['Sucursal_Origen', 'Sucursal_Destino', 
+                          'Distancia_km', 'Tiempo_Estimado_min']],
             use_container_width=True,
             hide_index=True
         )
+        
+        # Gráfico de transacciones por tipo debajo de la tabla
+        st.markdown("### Análisis de Demanda por Tipo de Transacción")
+        
+        datos_consolidados = obtener_datos_consolidados()
+        
+        try:
+            fig_trans_tipo = crear_grafico_transacciones_cajeros_por_tipo(datos_consolidados)
+            st.plotly_chart(fig_trans_tipo, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error al generar gráfico: {e}")
     
     with col2:
         st.markdown("**Métricas del Plan:**")
@@ -488,52 +500,10 @@ def pagina_optimizacion_logistica():
         
         distancia_promedio = distancia_total / num_rutas if num_rutas > 0 else 0
         st.metric("Distancia Promedio", f"{distancia_promedio:.2f} km")
-    
-    st.divider()
-    
-    # SECCIÓN 4: Análisis por Sucursal Principal
-    crear_seccion_encabezado(titulo="Análisis por Sucursal Principal")
-    
-    sucursales_principales = sucursales[sucursales['Tipo de Sucursal'] == 'Sucursal Principal']
-    
-    tabs = st.tabs([row['Nombre'] for _, row in sucursales_principales.iterrows()])
-    
-    for tab, (_, sucursal_principal) in zip(tabs, sucursales_principales.iterrows()):
-        with tab:
-            rutas_sucursal = rutas_optimas[
-                rutas_optimas['Sucursal_Origen'] == sucursal_principal['Nombre']
-            ]
-            
-            if len(rutas_sucursal) > 0:
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.metric(
-                        "Sucursales Atendidas",
-                        len(rutas_sucursal)
-                    )
-                
-                with col2:
-                    st.metric(
-                        "Distancia Total",
-                        f"{rutas_sucursal['Distancia_km'].sum():.2f} km"
-                    )
-                
-                with col3:
-                    st.metric(
-                        "Tiempo Total",
-                        f"{int(rutas_sucursal['Tiempo_Estimado_min'].sum())} min"
-                    )
-                
-                st.markdown("**Rutas asignadas:**")
-                st.dataframe(
-                    rutas_sucursal[['Sucursal_Destino', 'Distancia_km', 'Tiempo_Estimado_min']],
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.info("Esta sucursal principal no tiene sucursales secundarias asignadas.")
-    
+        
+        st.markdown("---")
+        
+        
 
 
 # PÁGINA 4: MARKETING DIRIGIDO

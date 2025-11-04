@@ -56,6 +56,20 @@ from modulos.visualizaciones import (
     crear_comparativa_clientes_por_tipo_sucursal
 )
 
+from modulos.predicciones import (
+        generar_datos_historicos,
+        entrenar_modelo_regresion,
+        generar_predicciones_futuras,
+        analizar_tendencias_por_sucursal,
+        analizar_estacionalidad,
+        calcular_indicadores_demanda,
+        crear_grafico_series_temporal,
+        crear_grafico_predicciones_vs_historico,
+        crear_grafico_comparacion_productos,
+        crear_grafico_tendencias_comparativas,
+        crear_grafico_estacionalidad,
+        crear_heatmap_sucursal_mes
+    )
 
 # PÁGINA 1: ANÁLISIS DE COBERTURA GEOGRÁFICA
 
@@ -686,85 +700,131 @@ def pagina_marketing_dirigido():
 # PREDICCIÓN DE DEMANDA
 
 def pagina_prediccion_demanda():
-    """
-    Predicción de demanda basada en factores geoespaciales.
-    """
     
-    crear_seccion_encabezado(titulo="Predicción de Demanda")
+    # Generar datos
+    with st.spinner("Generando datos y entrenando modelo..."):
+        df_historico = generar_datos_historicos()
+        modelo, scaler, r2, mae = entrenar_modelo_regresion(df_historico)
+        predicciones = generar_predicciones_futuras(df_historico, modelo, scaler, meses_futuros=6)
+        tendencias = analizar_tendencias_por_sucursal(df_historico)
+        estacionalidad = analizar_estacionalidad(df_historico)
+        kpis = calcular_indicadores_demanda(df_historico, predicciones)
     
-    clientes = cargar_clientes()
-    sucursales = cargar_sucursales()
-    cajeros = cargar_cajeros()
     
-    clientes = calcular_distancia_a_sucursal_mas_cercana(clientes, sucursales)
-    clientes = calcular_distancia_a_cajero_mas_cercano(clientes, cajeros)
-    
-    crear_seccion_encabezado(titulo="Modelo Predictivo")
-    
-    X = clientes[[
-        'Distancia_a_Sucursal_km',
-        'Distancia_a_Cajero_km',
-        'Frecuencia de Visitas',
-        'Saldo Promedio de Cuentas'
-    ]].values
-    
-    y = clientes['Volumen de Transacciones'].values
-    
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-    
-    modelo = LinearRegression()
-    modelo.fit(X_scaled, y)
-    score = modelo.score(X_scaled, y)
-    
-    st.metric("R² Score del Modelo", f"{score:.3f}")
-    
-    st.divider()
-    
-    crear_seccion_encabezado(titulo="Importancia de Factores")
-    
-    feature_names = ['Dist. Sucursal', 'Dist. Cajero', 'Frecuencia Visitas', 'Saldo Promedio']
-    importancia = np.abs(modelo.coef_)
-    importancia_norm = importancia / importancia.sum()
-    
-    fig_imp = px.bar(
-        x=feature_names,
-        y=importancia_norm,
-        title='Importancia de Factores',
-        labels={'x': 'Factor', 'y': 'Importancia Relativa'},
-        template='plotly_white'
-    )
-    fig_imp.update_traces(texttemplate='%{y:.1%}', textposition='outside')
-    st.plotly_chart(fig_imp, use_container_width=True)
-    
-    st.divider()
-    
-    crear_seccion_encabezado(titulo="Predicción para Nueva Ubicación")
+    # SECCIÓN 2: MÉTRICAS DEL MODELO
+    crear_seccion_encabezado(titulo="Desempeño del Modelo Predictivo")
     
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        dist_suc = st.number_input("Dist. a Sucursal (km)", value=7.0)
+        st.metric("R² Score", f"{r2:.4f}", delta="Bondad de ajuste")
     with col2:
-        dist_caj = st.number_input("Dist. a Cajero (km)", value=3.0)
+        st.metric("MAE", f"{mae:.0f}", delta="Error medio")
     with col3:
-        freq_vis = st.number_input("Frecuencia Visitas (veces/mes)", value=3.0)
+        st.metric("Trans. Actual", f"{kpis['Transacciones_Promedio_Actual']:,.0f}")
     with col4:
-        saldo_prom = st.number_input("Saldo Promedio ($)", value=5000.0)
+        tasa = kpis['Tasa_Crecimiento_Esperado_%']
+        st.metric("Crecimiento", f"{tasa:+.2f}%")
     
-    X_nuevo = np.array([[dist_suc, dist_caj, freq_vis, saldo_prom]])
-    X_nuevo_scaled = scaler.transform(X_nuevo)
-    prediccion = modelo.predict(X_nuevo_scaled)[0]
+    st.divider()
     
-    col1, col2 = st.columns(2)
+    # SECCIÓN 3: TENDENCIAS
+    crear_seccion_encabezado(titulo="Análisis de Tendencias por Sucursal")
+    
+    col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.metric("Transacciones Predichas", f"{int(max(0, prediccion))}")
+        fig_tendencias = crear_grafico_tendencias_comparativas(tendencias)
+        st.plotly_chart(fig_tendencias, use_container_width=True)
     
     with col2:
-        valor_potencial = prediccion * 20
-        st.metric("Ingreso Estimado Anual", f"${max(0, valor_potencial):,.0f}")
-
+        st.markdown("**Resumen**")
+        for idx, row in tendencias.iterrows():
+            emoji = "📈" if row['Tipo_Tendencia'] == 'Crecimiento' else "📉" if row['Tipo_Tendencia'] == 'Decrecimiento' else "➡️"
+            st.write(f"{emoji} {row['Sucursal']}: {row['Cambio_Transacciones_%']:+.1f}%")
+    
+    st.divider()
+    
+    # SECCIÓN 4: SERIES TEMPORALES
+    crear_seccion_encabezado(titulo="Series Temporales y Pronósticos")
+    
+    sucursales_disponibles = sorted(df_historico['Sucursal'].unique())
+    sucursal_seleccionada = st.selectbox("Selecciona sucursal", sucursales_disponibles, key="sucursal_pred")
+    
+    if sucursal_seleccionada:
+        tab1, tab2, tab3 = st.tabs(["Series Temporal", "Histórico vs Predicción", "Análisis"])
+        
+        with tab1:
+            fig_series = crear_grafico_series_temporal(df_historico, sucursal_seleccionada)
+            st.plotly_chart(fig_series, use_container_width=True)
+        
+        with tab2:
+            fig_pred = crear_grafico_predicciones_vs_historico(df_historico, predicciones, sucursal_seleccionada)
+            st.plotly_chart(fig_pred, use_container_width=True)
+            
+            datos_suc = df_historico[df_historico['Sucursal'] == sucursal_seleccionada]
+            pred_suc = predicciones[predicciones['Sucursal'] == sucursal_seleccionada]
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Prom. Histórico", f"{datos_suc['Transacciones_Sucursal'].mean():,.0f}")
+            with col2:
+                st.metric("Prom. Predicción", f"{pred_suc['Transacciones_Predichas'].mean():,.0f}")
+            with col3:
+                cambio = ((pred_suc['Transacciones_Predichas'].mean() - datos_suc['Transacciones_Sucursal'].mean()) / datos_suc['Transacciones_Sucursal'].mean() * 100)
+                st.metric("Cambio", f"{cambio:+.1f}%")
+        
+        with tab3:
+            fig_comp = crear_grafico_comparacion_productos(df_historico, sucursal_seleccionada)
+            st.plotly_chart(fig_comp, use_container_width=True)
+    
+    st.divider()
+    
+    # SECCIÓN 5: ESTACIONALIDAD
+    crear_seccion_encabezado(titulo="Patrones de Estacionalidad")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        fig_estac = crear_grafico_estacionalidad(estacionalidad)
+        st.plotly_chart(fig_estac, use_container_width=True)
+    
+    with col2:
+        st.markdown("**Análisis**")
+        mes_max = estacionalidad.loc[estacionalidad['Transacciones_Sucursal'].idxmax()]
+        mes_min = estacionalidad.loc[estacionalidad['Transacciones_Sucursal'].idxmin()]
+        
+        st.success(f"📈 Pico: {mes_max['Mes_Nombre']}")
+        st.warning(f"📉 Bajo: {mes_min['Mes_Nombre']}")
+        
+        variacion = ((mes_max['Transacciones_Sucursal'] - mes_min['Transacciones_Sucursal']) / mes_min['Transacciones_Sucursal'] * 100)
+        st.info(f"Variación: {variacion:.1f}%")
+    
+    st.divider()
+    
+    # SECCIÓN 6: MAPA DE CALOR
+    crear_seccion_encabezado(titulo="Mapa de Calor: Actividad por Sucursal-Mes")
+    
+    fig_heatmap = crear_heatmap_sucursal_mes(df_historico)
+    st.plotly_chart(fig_heatmap, use_container_width=True)
+    
+    st.divider()
+    
+    # SECCIÓN 7: TABLA DE PREDICCIONES
+    crear_seccion_encabezado(titulo="Tabla de Predicciones Futuras")
+    
+    pred_tabla = predicciones.groupby(['Fecha', 'Sucursal']).agg({
+        'Transacciones_Predichas': 'sum',
+        'Clientes_Proyectados': 'sum',
+        'Confidence': 'first'
+    }).reset_index().sort_values('Fecha')
+    
+    pred_tabla.columns = ['Fecha', 'Sucursal', 'Transacciones', 'Clientes', 'Confianza']
+    pred_tabla['Confianza_%'] = (pred_tabla['Confianza'] * 100).round(1)
+    
+    st.dataframe(pred_tabla[['Fecha', 'Sucursal', 'Transacciones', 'Clientes', 'Confianza_%']], 
+                 use_container_width=True, hide_index=True)
+    
 
 # ANÁLISIS DE RIESGOS
 

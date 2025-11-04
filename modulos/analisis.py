@@ -72,18 +72,22 @@ def pagina_analisis_cobertura():
     crear_seccion_encabezado(
         titulo="Mapa de Cobertura de Sucursales y Cajeros"
     )
+
+    if 'map_zoom_level' not in st.session_state:
+        st.session_state.map_zoom_level = 7
     
     col1, col2 = st.columns([3, 1])
     
     with col1:
         distancia_cobertura = st.slider(
             "Radio de cobertura (km)",
-            min_value=1.0,
-            max_value=30.0,
-            value=10.0,
-            step=0.5,
+            min_value=0,
+            max_value=30,
+            value=10,
+            step=5,
             help="Selecciona el radio de cobertura para cada sucursal"
         )
+        zoom_level = st.session_state.get('map_zoom_level', 7)
     
     with col2:
         st.info(
@@ -94,7 +98,8 @@ def pagina_analisis_cobertura():
     try:
         mapa_cobertura = crear_mapa_cobertura_con_radios(
             ubicaciones_sucursales,
-            distancia_km=distancia_cobertura
+            distancia_km=distancia_cobertura,
+            zoom_level=zoom_level
         )
         st.components.v1.html(mapa_cobertura._repr_html_(), height=600, width=None)
     except Exception as e:

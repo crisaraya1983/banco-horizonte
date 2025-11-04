@@ -552,7 +552,7 @@ def crear_grafico_matriz_distancias(matriz_distancias, etiquetas=None):
 
 # FUNCIONES PARA ANÁLISIS DE COBERTURA
 
-def crear_mapa_cobertura_con_radios(datos_ubicaciones, distancia_km=10.0):
+def crear_mapa_cobertura_con_radios(datos_ubicaciones, distancia_km=10.0, zoom_level=7):
  
     if len(datos_ubicaciones) == 0:
         return None
@@ -562,7 +562,7 @@ def crear_mapa_cobertura_con_radios(datos_ubicaciones, distancia_km=10.0):
     
     mapa = folium.Map(
         location=[centro_lat, centro_lon],
-        zoom_start=7,
+        zoom_start=zoom_level,  # ← USAR EL PARÁMETRO
         tiles="OpenStreetMap",
         prefer_canvas=True
     )

@@ -790,3 +790,168 @@ def crear_grafico_comparativa_cobertura_clientes(datos_consolidados, distancia_k
     fig.update_layout(height=400)
     fig = aplicar_tema(fig)
     return fig
+
+def crear_mapa_segmentacion_geografica(datos_consolidados):
+    
+    # Agrupar datos por sucursal para obtener info consolidada
+    sucursales_data = datos_consolidados.groupby(['Nombre', 'Latitud', 'Longitud']).agg({
+        'Numero_Clientes_Producto': 'sum',
+        'Volumen_Transacciones_Sucursal': 'first',
+        'Número de Empleados': 'first',
+        'Tipo de Sucursal': 'first'
+    }).reset_index()
+    
+    # Calcular métrica de eficiencia
+    sucursales_data['Clientes_por_Empleado'] = (
+        sucursales_data['Numero_Clientes_Producto'] / 
+        sucursales_data['Número de Empleados']
+    ).round(2)
+    
+    sucursales_data['Transacciones_por_Cliente'] = (
+        sucursales_data['Volumen_Transacciones_Sucursal'] / 
+        sucursales_data['Numero_Clientes_Producto']
+    ).round(2)
+    
+    # Centro del mapa
+    centro_lat = sucursales_data['Latitud'].mean()
+    centro_lon = sucursales_data['Longitud'].mean()
+    
+    mapa = folium.Map(
+        location=[centro_lat, centro_lon],
+        zoom_start=7,
+        tiles="OpenStreetMap",
+        prefer_canvas=True
+    )
+    
+    # Normalizar valores para colores y tamaños
+    min_clientes = sucursales_data['Numero_Clientes_Producto'].min()
+    max_clientes = sucursales_data['Numero_Clientes_Producto'].max()
+    
+    min_transacciones = sucursales_data['Volumen_Transacciones_Sucursal'].min()
+    max_transacciones = sucursales_data['Volumen_Transacciones_Sucursal'].max()
+    
+    def obtener_color(transacciones):
+        """Escala de colores: Rojo (bajo) -> Amarillo -> Verde (alto)"""
+        proporcion = (transacciones - min_transacciones) / (max_transacciones - min_transacciones)
+        if proporcion < 0.33:
+            return '#e74c3c'  # Rojo - bajo
+        elif proporcion < 0.66:
+            return '#f39c12'  # Amarillo - medio
+        else:
+            return '#27ae60'  # Verde - alto
+    
+    def obtener_tamaño(clientes):
+        """Escala de tamaño: 10 - 30 pixels"""
+        proporcion = (clientes - min_clientes) / (max_clientes - min_clientes)
+        return 10 + (proporcion * 20)
+    
+    # Agregar marcadores para cada sucursal
+    for idx, row in sucursales_data.iterrows():
+        color = obtener_color(row['Volumen_Transacciones_Sucursal'])
+        tamaño = obtener_tamaño(row['Numero_Clientes_Producto'])
+        
+        popup_text = f"""
+        <div style="font-family: Arial; width: 250px;">
+            <h4 style="margin: 5px 0; color: #2c5aa0;">{row['Nombre']}</h4>
+            <hr style="margin: 5px 0;">
+            <table style="width: 100%; font-size: 12px;">
+                <tr>
+                    <td><b>Tipo:</b></td>
+                    <td>{row['Tipo de Sucursal']}</td>
+                </tr>
+                <tr>
+                    <td><b>Clientes:</b></td>
+                    <td>{int(row['Numero_Clientes_Producto'])}</td>
+                </tr>
+                <tr>
+                    <td><b>Transacciones/mes:</b></td>
+                    <td>{int(row['Volumen_Transacciones_Sucursal']):,}</td>
+                </tr>
+                <tr>
+                    <td><b>Empleados:</b></td>
+                    <td>{int(row['Número de Empleados'])}</td>
+                </tr>
+                <tr>
+                    <td><b>Clientes/Emp:</b></td>
+                    <td>{row['Clientes_por_Empleado']}</td>
+                </tr>
+                <tr>
+                    <td><b>Trans/Cliente:</b></td>
+                    <td>{row['Transacciones_por_Cliente']}</td>
+                </tr>
+            </table>
+        </div>
+        """
+        
+        folium.CircleMarker(
+            location=[row['Latitud'], row['Longitud']],
+            radius=tamaño,
+            popup=folium.Popup(popup_text, max_width=300),
+            tooltip=f"{row['Nombre']}: {int(row['Numero_Clientes_Producto'])} clientes",
+            color='white',
+            fill=True,
+            fillColor=color,
+            fillOpacity=0.85,
+            weight=3
+        ).add_to(mapa)
+        
+        # Etiqueta con nombre
+        folium.Marker(
+            location=[row['Latitud'], row['Longitud']],
+            icon=folium.DivIcon(html=f"""
+                <div style="font-size: 11px; font-weight: bold; 
+                            background-color: white; padding: 3px 6px; 
+                            border-radius: 3px; border: 2px solid {color};
+                            white-space: nowrap;">
+                    {row['Nombre'].split()[-1]}
+                </div>
+            """)
+        ).add_to(mapa)
+    
+    # Agregar leyenda
+    legend_html = """
+    <div style="position: fixed; 
+            bottom: 50px; right: 50px; width: 280px; 
+            background-color: white; border: 2px solid #2c5aa0; 
+            border-radius: 8px; z-index: 9999; font-size: 13px; padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+        <h4 style="margin: 0 0 10px 0; color: #2c5aa0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+            Leyenda de Segmentación
+        </h4>
+        
+        <p style="margin: 8px 0; font-weight: 600;">📊 Tamaño del Marcador:</p>
+        <p style="margin: 3px 0 8px 15px; font-size: 12px; color: #718096;">
+            Proporcional a cantidad de clientes atendidos
+        </p>
+        
+        <p style="margin: 8px 0; font-weight: 600;">🎨 Color del Marcador:</p>
+        <div style="margin-left: 15px; font-size: 12px;">
+            <p style="margin: 3px 0;">
+                <span style="display: inline-block; width: 16px; height: 16px; 
+                             background-color: #e74c3c; border-radius: 50%; 
+                             vertical-align: middle; margin-right: 8px;"></span>
+                Volumen Bajo de Transacciones
+            </p>
+            <p style="margin: 3px 0;">
+                <span style="display: inline-block; width: 16px; height: 16px; 
+                             background-color: #f39c12; border-radius: 50%; 
+                             vertical-align: middle; margin-right: 8px;"></span>
+                Volumen Medio de Transacciones
+            </p>
+            <p style="margin: 3px 0;">
+                <span style="display: inline-block; width: 16px; height: 16px; 
+                             background-color: #27ae60; border-radius: 50%; 
+                             vertical-align: middle; margin-right: 8px;"></span>
+                Volumen Alto de Transacciones
+            </p>
+        </div>
+        
+        <hr style="margin: 10px 0; border: 1px solid #e2e8f0;">
+        <p style="margin: 5px 0; font-size: 11px; color: #718096;">
+            💡 <b>Análisis:</b> Busca areas con marcadores grandes pero color rojo/amarillo = oportunidad de expandir
+        </p>
+    </div>
+    """
+    mapa.get_root().html.add_child(folium.Element(legend_html))
+    
+    return mapa, sucursales_data

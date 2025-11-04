@@ -46,7 +46,8 @@ from modulos.visualizaciones import (
     crear_grafico_frecuencia_visitas,
     crear_grafico_transacciones_cajeros,
     crear_grafico_matriz_distancias,
-    crear_grafico_transacciones_cajeros_por_tipo
+    crear_grafico_transacciones_cajeros_por_tipo,
+    crear_mapa_segmentacion_geografica
 )
 
 
@@ -274,126 +275,121 @@ def pagina_analisis_cobertura():
 # PÁGINA 2: SEGMENTACIÓN GEOGRÁFICA
 
 def pagina_segmentacion_geografica():
-    """
-    Segmentación geográfica de clientes y análisis de productos por región.
-    """
     
-    crear_seccion_encabezado(titulo="Segmentación Geográfica")
+    # Cargar datos consolidados
+    datos_consolidados = obtener_datos_consolidados()
     
-    sucursales = cargar_sucursales()
-    cajeros = cargar_cajeros()
-    clientes = cargar_clientes()
-    
-    num_zonas = st.slider(
-        "Número de zonas",
-        min_value=2, max_value=5, value=3
+    # SECCIÓN 1: MAPA DE SEGMENTACIÓN
+    crear_seccion_encabezado(
+        titulo="Mapa de Segmentación: Clientes vs. Transacciones por Sucursal"
     )
     
-    coords = clientes[['Latitud', 'Longitud']].values
-    kmeans = KMeans(n_clusters=num_zonas, random_state=42, n_init=10)
-    clientes['Zona'] = kmeans.fit_predict(coords) + 1
-    
-    crear_seccion_encabezado(titulo="Características por Zona")
-    
-    resumen_zonas = []
-    for zona in range(1, num_zonas + 1):
-        clientes_zona = clientes[clientes['Zona'] == zona]
-        if len(clientes_zona) > 0:
-            resumen_zonas.append({
-                'Zona': f"Zona {zona}",
-                'Clientes': len(clientes_zona),
-                'Saldo Promedio': f"${clientes_zona['Saldo Promedio de Cuentas'].mean():,.0f}",
-                'Visitas/mes': f"{clientes_zona['Frecuencia de Visitas'].mean():.1f}",
-                'Transacciones': int(clientes_zona['Volumen de Transacciones'].mean()),
-                'Producto Preferido': clientes_zona['Productos Financieros Adquiridos'].mode()[0] if len(clientes_zona) > 0 else 'N/A'
-            })
-    
-    resumen_df = pd.DataFrame(resumen_zonas)
-    st.dataframe(resumen_df, use_container_width=True, hide_index=True)
-    
-    st.divider()
-    
-    # Mapa de segmentación
-    crear_seccion_encabezado(titulo="Distribución Espacial de Zonas")
-    
     try:
-        import folium
-        
-        centro_lat = clientes['Latitud'].mean()
-        centro_lon = clientes['Longitud'].mean()
-        mapa = folium.Map(location=[centro_lat, centro_lon], zoom_start=7)
-        
-        colores = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6']
-        
-        for zona in range(1, num_zonas + 1):
-            clientes_zona = clientes[clientes['Zona'] == zona]
-            color = colores[(zona - 1) % len(colores)]
-            
-            for idx, cliente in clientes_zona.iterrows():
-                folium.CircleMarker(
-                    location=[cliente['Latitud'], cliente['Longitud']],
-                    radius=7,
-                    color=color,
-                    fill=True,
-                    fillColor=color,
-                    fillOpacity=0.7,
-                    popup=f"Zona {zona}"
-                ).add_to(mapa)
-            
-            centro = clientes_zona[['Latitud', 'Longitud']].mean()
-            folium.Marker(
-                location=[centro['Latitud'], centro['Longitud']],
-                popup=f"Centro Zona {zona}",
-                icon=folium.Icon(color='gray', icon='info-sign')
-            ).add_to(mapa)
-        
-        st.components.v1.html(mapa._repr_html_(), height=600, width=None)
+        mapa_seg, datos_sucursales = crear_mapa_segmentacion_geografica(datos_consolidados)
+        st.components.v1.html(mapa_seg._repr_html_(), height=700, width=None)
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error al generar el mapa: {e}")
     
     st.divider()
     
-    # Gráficos de análisis
-    crear_seccion_encabezado(titulo="Análisis de Productos y Valor")
+    # SECCIÓN 2: ANÁLISIS DE EFICIENCIA
+    crear_seccion_encabezado(
+        titulo="Análisis de Eficiencia Operativa por Sucursal"
+    )
     
-    col1, col2 = st.columns(2)
+    # Tabla de estadísticas
+    col1, col2 = st.columns([2, 1])
     
     with col1:
-        productos_zona = clientes.groupby(['Zona', 'Productos Financieros Adquiridos']).size().reset_index(name='Cantidad')
-        productos_zona['Zona'] = 'Zona ' + productos_zona['Zona'].astype(str)
+        st.markdown("**Detalle de Sucursales**")
         
-        fig_productos = px.bar(
-            productos_zona,
-            x='Zona',
-            y='Cantidad',
-            color='Productos Financieros Adquiridos',
-            title='Distribución de Productos por Zona',
-            barmode='stack',
-            template='plotly_white'
-        )
-        st.plotly_chart(fig_productos, use_container_width=True)
+        # Crear tabla formateada
+        tabla_eficiencia = datos_sucursales[[
+            'Nombre', 
+            'Tipo de Sucursal',
+            'Numero_Clientes_Producto',
+            'Volumen_Transacciones_Sucursal',
+            'Número de Empleados',
+            'Clientes_por_Empleado',
+            'Transacciones_por_Cliente'
+        ]].copy()
+        
+        tabla_eficiencia.columns = [
+            'Sucursal',
+            'Tipo',
+            'Clientes',
+            'Trans/mes',
+            'Empleados',
+            'Clientes/Emp',
+            'Trans/Cliente'
+        ]
+        
+        tabla_eficiencia = tabla_eficiencia.sort_values('Clientes', ascending=False)
+        
+        st.dataframe(tabla_eficiencia, use_container_width=True, hide_index=True)
     
     with col2:
-        saldo_zona = []
-        for zona in range(1, num_zonas + 1):
-            clientes_zona = clientes[clientes['Zona'] == zona]
-            saldo_zona.append({
-                'Zona': f'Zona {zona}',
-                'Saldo': clientes_zona['Saldo Promedio de Cuentas'].mean()
-            })
+        st.markdown("**Métricas Globales**")
         
-        saldo_df = pd.DataFrame(saldo_zona)
+        total_clientes = datos_sucursales['Numero_Clientes_Producto'].sum()
+        total_transacciones = datos_sucursales['Volumen_Transacciones_Sucursal'].sum()
+        total_empleados = datos_sucursales['Número de Empleados'].sum()
         
-        fig_saldo = px.bar(
-            saldo_df,
-            x='Zona',
-            y='Saldo',
-            title='Saldo Promedio por Zona',
-            template='plotly_white',
-            color='Zona'
-        )
-        fig_saldo.update_traces(texttemplate='$%{y:,.0f}', textposition='outside')
-        st.plotly_chart(fig_saldo, use_container_width=True)
+        st.metric("Total Clientes", f"{int(total_clientes):,}")
+        st.metric("Total Trans/mes", f"{int(total_transacciones):,}")
+        st.metric("Total Empleados", f"{int(total_empleados)}")
+        st.metric("Trans/Cliente Promedio", 
+                 f"{(total_transacciones / total_clientes):.2f}")
+    
+    st.divider()
+    
+    # SECCIÓN 3: IDENTIFICACIÓN DE ZONAS ESTRATÉGICAS
+    crear_seccion_encabezado(
+        titulo="Identificación de Zonas Estratégicas"
+    )
+    
+    # Calcular cuartiles para segmentación
+    q_clientes_75 = datos_sucursales['Numero_Clientes_Producto'].quantile(0.75)
+    q_transacciones_75 = datos_sucursales['Volumen_Transacciones_Sucursal'].quantile(0.75)
+    q_clientes_25 = datos_sucursales['Numero_Clientes_Producto'].quantile(0.25)
+    q_transacciones_25 = datos_sucursales['Volumen_Transacciones_Sucursal'].quantile(0.25)
+    
+    # Categorizar sucursales
+    def categorizar_sucursal(row):
+        clientes = row['Numero_Clientes_Producto']
+        transacciones = row['Volumen_Transacciones_Sucursal']
+        
+        if clientes >= q_clientes_75 and transacciones >= q_transacciones_75:
+            return "🔥 Alto Rendimiento"
+        elif clientes >= q_clientes_75 and transacciones < q_transacciones_75:
+            return "⚡ Alta Demanda - Baja Transaccionalidad"
+        elif clientes < q_clientes_25 and transacciones < q_transacciones_25:
+            return "❌ Baja Actividad"
+        elif clientes >= q_clientes_25 and transacciones >= q_transacciones_25:
+            return "✅ Rendimiento Normal"
+        else:
+            return "⚠️ Requiere Análisis"
+    
+    datos_sucursales['Categoría'] = datos_sucursales.apply(categorizar_sucursal, axis=1)
+    
+    tabs = st.tabs([cat for cat in datos_sucursales['Categoría'].unique()])
+    
+    for tab, categoria in zip(tabs, datos_sucursales['Categoría'].unique()):
+        with tab:
+            datos_categoria = datos_sucursales[datos_sucursales['Categoría'] == categoria]
+            
+            if len(datos_categoria) > 0:
+                st.dataframe(
+                    datos_categoria[[
+                        'Nombre', 'Tipo de Sucursal', 'Numero_Clientes_Producto',
+                        'Volumen_Transacciones_Sucursal', 'Clientes_por_Empleado'
+                    ]].sort_values('Numero_Clientes_Producto', ascending=False),
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("No hay sucursales en esta categoría")
+
 
 
 # OPTIMIZACIÓN LOGÍSTICA

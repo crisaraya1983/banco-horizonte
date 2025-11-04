@@ -841,9 +841,8 @@ def crear_mapa_segmentacion_geografica(datos_consolidados):
             return '#27ae60'  # Verde - alto
     
     def obtener_tamaño(clientes):
-        """Escala de tamaño: 10 - 30 pixels"""
         proporcion = (clientes - min_clientes) / (max_clientes - min_clientes)
-        return 10 + (proporcion * 20)
+        return 35 + (proporcion * 40)
     
     # Agregar marcadores para cada sucursal
     for idx, row in sucursales_data.iterrows():

@@ -381,9 +381,15 @@ def pagina_segmentacion_geografica():
             if len(datos_categoria) > 0:
                 st.dataframe(
                     datos_categoria[[
-                        'Nombre', 'Tipo de Sucursal', 'Numero_Clientes_Producto',
+                        'Nombre', 'Numero_Clientes_Producto',
                         'Volumen_Transacciones_Sucursal', 'Clientes_por_Empleado'
-                    ]].sort_values('Numero_Clientes_Producto', ascending=False),
+                    ]].sort_values('Numero_Clientes_Producto', ascending=False)
+                    .rename(columns={
+                        'Nombre': 'Sucursal',
+                        'Numero_Clientes_Producto': 'Cantidad_Clientes',
+                        'Volumen_Transacciones_Sucursal': 'Trans/mes',
+                        'Clientes_por_Empleado': 'Clientes/Emp'
+                    }),
                     use_container_width=True,
                     hide_index=True
                 )

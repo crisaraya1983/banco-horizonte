@@ -49,7 +49,11 @@ from modulos.visualizaciones import (
     crear_grafico_matriz_distancias,
     crear_grafico_transacciones_cajeros_por_tipo,
     crear_mapa_segmentacion_geografica,
-    crear_mapa_rutas_mantenimiento
+    crear_mapa_rutas_mantenimiento,
+    aplicar_tema,
+    crear_heatmap_productos_sucursales,
+    crear_analisis_productos_por_tipo_sucursal,
+    crear_comparativa_clientes_por_tipo_sucursal
 )
 
 
@@ -509,78 +513,175 @@ def pagina_optimizacion_logistica():
 # PÁGINA 4: MARKETING DIRIGIDO
 
 def pagina_marketing_dirigido():
-    """
-    Análisis de marketing dirigido por geolocalización.
-    """
     
-    crear_seccion_encabezado(titulo="Marketing Dirigido por Geolocalización")
+    # Cargar datos
+    datos_consolidados = obtener_datos_consolidados()
     
-    clientes = cargar_clientes()
-    sucursales = cargar_sucursales()
+    # SECCIÓN 1: Resumen de Productos por Sucursal
+    crear_seccion_encabezado(titulo="Distribución de Productos por Sucursal")
     
-    clientes = calcular_distancia_a_sucursal_mas_cercana(clientes, sucursales)
+    resumen_productos = datos_consolidados.groupby(['Nombre', 'Productos Financieros Adquiridos']).agg({
+        'Numero_Clientes_Producto': 'sum',
+        'Volumen_Ventas_Producto': 'sum'
+    }).reset_index()
     
-    crear_seccion_encabezado(titulo="Análisis de Valor de Clientes")
-    
-    clientes['Segmento_Valor'] = pd.cut(
-        clientes['Saldo Promedio de Cuentas'],
-        bins=[0, 3000, 5000, float('inf')],
-        labels=['Bajo', 'Medio', 'Alto']
-    )
-    
-    seg_stats = clientes.groupby('Segmento_Valor').agg({
-        'Saldo Promedio de Cuentas': 'mean',
-        'Frecuencia de Visitas': 'mean',
-        'Volumen de Transacciones': 'mean'
-    }).round(0)
-    
-    st.dataframe(seg_stats, use_container_width=True)
-    
-    st.divider()
-    
-    crear_seccion_encabezado(titulo="Distribución de Clientes")
-    
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
-        seg_dist = clientes['Segmento_Valor'].value_counts()
-        fig_seg = px.pie(
-            values=seg_dist.values,
-            names=seg_dist.index,
-            title='Clientes por Segmento de Valor',
-            color_discrete_map={'Bajo': '#FF6B6B', 'Medio': '#FFA500', 'Alto': '#4ECDC4'}
-        )
-        st.plotly_chart(fig_seg, use_container_width=True)
+        total_clientes = resumen_productos['Numero_Clientes_Producto'].sum()
+        st.metric("Total de Clientes", f"{int(total_clientes):,}")
     
     with col2:
-        prod_seg = pd.crosstab(clientes['Segmento_Valor'], clientes['Productos Financieros Adquiridos'])
-        fig_prod_seg = px.bar(
-            prod_seg,
-            barmode='group',
-            title='Productos por Segmento',
-            template='plotly_white'
-        )
-        st.plotly_chart(fig_prod_seg, use_container_width=True)
+        total_ventas = resumen_productos['Volumen_Ventas_Producto'].sum()
+        st.metric("Volumen Total de Ventas", f"${int(total_ventas):,}")
+    
+    with col3:
+        productos_unicos = resumen_productos['Productos Financieros Adquiridos'].nunique()
+        st.metric("Productos Activos", productos_unicos)
     
     st.divider()
     
-    crear_seccion_encabezado(titulo="Proximidad vs Valor de Cliente")
-    
-    fig_prox_valor = px.scatter(
-        clientes,
-        x='Distancia_a_Sucursal_km',
-        y='Saldo Promedio de Cuentas',
-        color='Productos Financieros Adquiridos',
-        size='Volumen de Transacciones',
-        title='Distancia a Sucursal vs Valor de Cliente',
-        labels={
-            'Distancia_a_Sucursal_km': 'Distancia (km)',
-            'Saldo Promedio de Cuentas': 'Saldo Promedio ($)'
-        },
-        template='plotly_white'
+    # SECCIÓN 2: Mapa de Calor de Ventas
+    crear_seccion_encabezado(
+        titulo="Mapa de Calor: Productos por Ubicación",
+        descripcion="Visualización del volumen de ventas de cada producto en cada sucursal específica"
     )
-    st.plotly_chart(fig_prox_valor, use_container_width=True)
-
+    
+    try:
+        fig_heatmap = crear_heatmap_productos_sucursales(datos_consolidados)
+        st.plotly_chart(fig_heatmap, use_container_width=True)
+    except Exception as e:
+        st.error(f"Error al generar mapa de calor: {e}")
+    
+    st.divider()
+    
+    # SECCIÓN 3: Análisis por Tipo de Sucursal
+    crear_seccion_encabezado(
+        titulo="Análisis por Tipo de Sucursal",
+        descripcion="Comparación del desempeño de productos en Sucursales Principales vs Secundarias"
+    )
+    
+    try:
+        fig_tipo, analisis_tipo = crear_analisis_productos_por_tipo_sucursal(datos_consolidados)
+        st.plotly_chart(fig_tipo, use_container_width=True)
+    except Exception as e:
+        st.error(f"Error al generar análisis por tipo: {e}")
+        analisis_tipo = pd.DataFrame()
+    
+    st.divider()
+    
+    # SECCIÓN 4: Comparativa de Clientes
+    crear_seccion_encabezado(
+        titulo="Distribución de Clientes por Tipo de Sucursal"
+    )
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        try:
+            fig_clientes = crear_comparativa_clientes_por_tipo_sucursal(datos_consolidados)
+            st.plotly_chart(fig_clientes, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error al generar comparativa: {e}")
+    
+    with col2:
+        if not analisis_tipo.empty:
+            st.markdown("**Métricas por Tipo**")
+            
+            # Calcular métricas agregadas
+            for tipo in analisis_tipo['Tipo de Sucursal'].unique():
+                datos_tipo = analisis_tipo[analisis_tipo['Tipo de Sucursal'] == tipo]
+                
+                st.markdown(f"**{tipo}**")
+                total_ventas_tipo = datos_tipo['Volumen_Ventas_Producto'].sum()
+                total_clientes_tipo = datos_tipo['Numero_Clientes_Producto'].sum()
+                
+                st.metric(
+                    "Ventas Totales",
+                    f"${int(total_ventas_tipo):,}"
+                )
+                st.metric(
+                    "Clientes Totales",
+                    f"{int(total_clientes_tipo):,}"
+                )
+    
+    st.divider()
+    
+    
+    # SECCIÓN 6: Análisis Detallado por Producto
+    crear_seccion_encabezado(
+        titulo="Análisis Detallado por Producto",
+        descripcion="Selecciona un producto para ver su desempeño detallado por ubicación"
+    )
+    
+    productos_disponibles = sorted(datos_consolidados['Productos Financieros Adquiridos'].unique())
+    producto_seleccionado = st.selectbox(
+        "Seleccionar Producto Financiero",
+        productos_disponibles
+    )
+    
+    if producto_seleccionado:
+        datos_producto = datos_consolidados[
+            datos_consolidados['Productos Financieros Adquiridos'] == producto_seleccionado
+        ].groupby('Nombre').agg({
+            'Numero_Clientes_Producto': 'sum',
+            'Volumen_Ventas_Producto': 'sum',
+            'Saldo Promedio de Cuentas': 'mean'
+        }).reset_index().sort_values('Volumen_Ventas_Producto', ascending=True)
+        
+        fig_producto = go.Figure()
+        
+        fig_producto.add_trace(go.Bar(
+            y=datos_producto['Nombre'],
+            x=datos_producto['Volumen_Ventas_Producto'],
+            orientation='h',
+            marker=dict(
+                color=datos_producto['Volumen_Ventas_Producto'],
+                colorscale='Blues',
+                showscale=True,
+                colorbar=dict(title="Ventas")
+            ),
+            text=datos_producto['Volumen_Ventas_Producto'],
+            texttemplate='$%{text:,.0f}',
+            textposition='outside',
+            hovertemplate='<b>%{y}</b><br>Ventas: $%{x:,.0f}<br>Clientes: %{customdata}<extra></extra>',
+            customdata=datos_producto['Numero_Clientes_Producto']
+        ))
+        
+        fig_producto.update_layout(
+            title=f'Volumen de Ventas de {producto_seleccionado} por Sucursal',
+            xaxis_title='Volumen de Ventas ($)',
+            yaxis_title='Sucursal',
+            template='plotly_white',
+            height=400
+        )
+        
+        fig_producto = aplicar_tema(fig_producto)
+        st.plotly_chart(fig_producto, use_container_width=True)
+        
+        # Métricas del producto seleccionado
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            total_clientes_producto = datos_producto['Numero_Clientes_Producto'].sum()
+            st.metric(
+                f"Clientes Totales ({producto_seleccionado})",
+                f"{int(total_clientes_producto):,}"
+            )
+        
+        with col2:
+            total_ventas_producto = datos_producto['Volumen_Ventas_Producto'].sum()
+            st.metric(
+                "Volumen Total de Ventas",
+                f"${int(total_ventas_producto):,}"
+            )
+        
+        with col3:
+            promedio_saldo = datos_producto['Saldo Promedio de Cuentas'].mean()
+            st.metric(
+                "Saldo Promedio",
+                f"${int(promedio_saldo):,}"
+            )
 
 # PREDICCIÓN DE DEMANDA
 

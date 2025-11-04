@@ -1051,3 +1051,340 @@ def crear_mapa_rutas_mantenimiento(sucursales_df, rutas_df):
     
     
     return mapa
+
+def crear_heatmap_productos_sucursales(datos_consolidados):
+    """
+    Crea un mapa de calor mostrando volumen de ventas por producto y sucursal.
+    """
+    # Preparar datos
+    pivot_data = datos_consolidados.groupby(['Nombre', 'Productos Financieros Adquiridos']).agg({
+        'Volumen_Ventas_Producto': 'sum'
+    }).reset_index()
+    
+    pivot_table = pivot_data.pivot(
+        index='Productos Financieros Adquiridos',
+        columns='Nombre',
+        values='Volumen_Ventas_Producto'
+    ).fillna(0)
+    
+    fig = go.Figure(data=go.Heatmap(
+        z=pivot_table.values,
+        x=pivot_table.columns,
+        y=pivot_table.index,
+        colorscale='Blues',  # ← PALETA AZUL
+        text=np.round(pivot_table.values, 0),
+        texttemplate='$%{text:,.0f}',
+        textfont={"size": 11},
+        hovertemplate='<b>%{y}</b><br>Sucursal: %{x}<br>Ventas: $%{z:,.0f}<extra></extra>',
+        colorbar=dict(
+            title="Volumen<br>de Ventas",
+            thickness=20,
+            len=0.7
+        )
+    ))
+    
+    fig.update_layout(
+        title='Mapa de Calor: Volumen de Ventas por Producto y Sucursal',
+        xaxis_title='Sucursal',
+        yaxis_title='Producto Financiero',
+        height=500,
+        template='plotly_white'
+    )
+    
+    fig = aplicar_tema(fig)
+    return fig
+
+
+def crear_analisis_penetracion_mercado(datos_consolidados):
+    """
+    Analiza la penetración de cada producto por sucursal.
+    Identifica oportunidades de marketing.
+    """
+    # Importar datos originales
+    from modulos.carga_datos import cargar_productos, cargar_sucursales
+    
+    productos_df = cargar_productos()
+    sucursales_df = cargar_sucursales()
+    
+    # Preparar datos desde productos.csv
+    pivot_data = productos_df.groupby(['Sucursal Donde Se Ofrece', 'Tipo de Producto']).agg({
+        'Número de Clientes': 'sum',
+        'Volumen de Ventas': 'sum'
+    }).reset_index()
+    
+    # Expandir para todas las sucursales
+    expanded_data = []
+    for _, row in pivot_data.iterrows():
+        tipo_sucursal = row['Sucursal Donde Se Ofrece']
+        sucursales_tipo = sucursales_df[sucursales_df['Tipo de Sucursal'] == tipo_sucursal]
+        
+        for _, sucursal in sucursales_tipo.iterrows():
+            expanded_data.append({
+                'Nombre': sucursal['Nombre'],
+                'Productos Financieros Adquiridos': row['Tipo de Producto'],
+                'Numero_Clientes_Producto': row['Número de Clientes'],
+                'Volumen_Ventas_Producto': row['Volumen de Ventas']
+            })
+    
+    metricas = pd.DataFrame(expanded_data)
+    
+    # Calcular penetración relativa (comparado con el mejor)
+    for producto in metricas['Productos Financieros Adquiridos'].unique():
+        mask = metricas['Productos Financieros Adquiridos'] == producto
+        max_clientes = metricas.loc[mask, 'Numero_Clientes_Producto'].max()
+        if max_clientes > 0:
+            metricas.loc[mask, 'Penetracion_Relativa'] = (
+                metricas.loc[mask, 'Numero_Clientes_Producto'] / max_clientes * 100
+            )
+        else:
+            metricas.loc[mask, 'Penetracion_Relativa'] = 0
+    
+    # Identificar oportunidades (penetración < 70%)
+    metricas['Oportunidad_Marketing'] = metricas['Penetracion_Relativa'] < 70
+    
+    fig = px.bar(
+        metricas,
+        x='Penetracion_Relativa',
+        y='Nombre',
+        color='Productos Financieros Adquiridos',
+        orientation='h',
+        title='Análisis de Penetración de Mercado por Producto',
+        labels={
+            'Penetracion_Relativa': 'Penetración Relativa (%)',
+            'Nombre': 'Sucursal'
+        },
+        text='Penetracion_Relativa',
+        barmode='group',
+        color_discrete_sequence=COLORES,
+        template='plotly_white',
+        height=500
+    )
+    
+    fig.update_traces(
+        texttemplate='%{text:.1f}%',
+        textposition='outside',
+        hovertemplate='<b>%{y}</b><br>Penetración: %{x:.1f}%<extra></extra>'
+    )
+    
+    # Agregar línea de referencia en 70%
+    fig.add_vline(
+        x=70,
+        line_dash="dash",
+        line_color="red",
+        annotation_text="Umbral de Oportunidad",
+        annotation_position="top right"
+    )
+    
+    fig.update_layout(
+        xaxis_range=[0, 105],
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.3,
+            xanchor="center",
+            x=0.5
+        )
+    )
+    
+    fig = aplicar_tema(fig)
+    return fig, metricas
+
+
+def crear_matriz_oportunidades_marketing(metricas_df):
+    """
+    Crea una matriz de oportunidades identificando gaps de marketing.
+    """
+    # Filtrar solo oportunidades
+    oportunidades = metricas_df[metricas_df['Oportunidad_Marketing']].copy()
+    oportunidades = oportunidades.sort_values(
+        ['Productos Financieros Adquiridos', 'Penetracion_Relativa']
+    )
+    
+    # Calcular el "gap" (diferencia con el 100%)
+    oportunidades['Gap_Porcentual'] = 100 - oportunidades['Penetracion_Relativa']
+    oportunidades['Clientes_Potenciales'] = (
+        oportunidades['Numero_Clientes_Producto'] / 
+        oportunidades['Penetracion_Relativa'] * 100
+    ).round(0)
+    oportunidades['Gap_Clientes'] = (
+        oportunidades['Clientes_Potenciales'] - 
+        oportunidades['Numero_Clientes_Producto']
+    ).round(0)
+    
+    fig = go.Figure()
+    
+    # Clientes actuales
+    fig.add_trace(go.Bar(
+        y=oportunidades['Nombre'] + ' - ' + oportunidades['Productos Financieros Adquiridos'],
+        x=oportunidades['Numero_Clientes_Producto'],
+        name='Clientes Actuales',
+        orientation='h',
+        marker=dict(color=COLORES[0]),
+        text=oportunidades['Numero_Clientes_Producto'],
+        textposition='inside',
+        hovertemplate='<b>%{y}</b><br>Clientes: %{x}<extra></extra>'
+    ))
+    
+    # Gap de oportunidad
+    fig.add_trace(go.Bar(
+        y=oportunidades['Nombre'] + ' - ' + oportunidades['Productos Financieros Adquiridos'],
+        x=oportunidades['Gap_Clientes'],
+        name='Oportunidad de Crecimiento',
+        orientation='h',
+        marker=dict(color=COLORES[3]),
+        text=oportunidades['Gap_Clientes'],
+        textposition='inside',
+        hovertemplate='<b>%{y}</b><br>Potencial: %{x} clientes<extra></extra>'
+    ))
+    
+    fig.update_layout(
+        title='Matriz de Oportunidades de Marketing',
+        xaxis_title='Número de Clientes',
+        yaxis_title='',
+        barmode='stack',
+        template='plotly_white',
+        height=max(400, len(oportunidades) * 40),
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
+    
+    fig = aplicar_tema(fig)
+    return fig, oportunidades
+
+
+def crear_tabla_recomendaciones_marketing(oportunidades_df):
+    """
+    Genera recomendaciones específicas de marketing por sucursal y producto.
+    """
+    # Priorizar por gap de clientes
+    top_oportunidades = oportunidades_df.nlargest(10, 'Gap_Clientes').copy()
+    
+    # Crear texto de recomendación
+    def generar_recomendacion(row):
+        return f"Campaña enfocada en {row['Productos Financieros Adquiridos']} con potencial de {int(row['Gap_Clientes'])} clientes adicionales"
+    
+    top_oportunidades['Recomendacion'] = top_oportunidades.apply(
+        generar_recomendacion, axis=1
+    )
+    
+    # Prioridad basada en volumen potencial
+    top_oportunidades['Prioridad'] = pd.cut(
+        top_oportunidades['Gap_Clientes'],
+        bins=[0, 50, 100, float('inf')],
+        labels=['Media', 'Alta', 'Crítica']
+    )
+    
+    return top_oportunidades[[
+        'Nombre',
+        'Productos Financieros Adquiridos',
+        'Numero_Clientes_Producto',
+        'Gap_Clientes',
+        'Penetracion_Relativa',
+        'Prioridad',
+        'Recomendacion'
+    ]]
+
+def crear_analisis_productos_por_tipo_sucursal(datos_consolidados):
+    """
+    Analiza el desempeño de productos por tipo de sucursal (Principal vs Secundaria).
+    """
+    # Agrupar por tipo de sucursal y producto
+    analisis = datos_consolidados.groupby(['Tipo de Sucursal', 'Productos Financieros Adquiridos']).agg({
+        'Numero_Clientes_Producto': 'sum',
+        'Volumen_Ventas_Producto': 'sum'
+    }).reset_index()
+    
+    # Crear gráfico de barras agrupadas
+    fig = go.Figure()
+    
+    tipos_sucursal = analisis['Tipo de Sucursal'].unique()
+    productos = analisis['Productos Financieros Adquiridos'].unique()
+    
+    colores_tipo = {
+        'Sucursal Principal': COLORES[0],
+        'Sucursal Secundaria': COLORES[1]
+    }
+    
+    for tipo in tipos_sucursal:
+        datos_tipo = analisis[analisis['Tipo de Sucursal'] == tipo]
+        
+        fig.add_trace(go.Bar(
+            name=tipo,
+            x=datos_tipo['Productos Financieros Adquiridos'],
+            y=datos_tipo['Volumen_Ventas_Producto'],
+            text=datos_tipo['Volumen_Ventas_Producto'],
+            texttemplate='$%{text:,.0f}',
+            textposition='outside',
+            marker_color=colores_tipo.get(tipo, COLORES[2]),
+            hovertemplate='<b>%{x}</b><br>Tipo: ' + tipo + '<br>Ventas: $%{y:,.0f}<extra></extra>'
+        ))
+    
+    fig.update_layout(
+        title='Desempeño de Productos por Tipo de Sucursal',
+        xaxis_title='Producto Financiero',
+        yaxis_title='Volumen de Ventas ($)',
+        barmode='group',
+        template='plotly_white',
+        height=450,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
+    
+    fig = aplicar_tema(fig)
+    return fig, analisis
+
+
+def crear_comparativa_clientes_por_tipo_sucursal(datos_consolidados):
+    """
+    Compara la cantidad de clientes por producto según el tipo de sucursal.
+    """
+    # Agrupar por tipo de sucursal y producto
+    analisis = datos_consolidados.groupby(['Tipo de Sucursal', 'Productos Financieros Adquiridos']).agg({
+        'Numero_Clientes_Producto': 'sum'
+    }).reset_index()
+    
+    fig = px.bar(
+        analisis,
+        x='Productos Financieros Adquiridos',
+        y='Numero_Clientes_Producto',
+        color='Tipo de Sucursal',
+        title='Cantidad de Clientes por Producto según Tipo de Sucursal',
+        labels={
+            'Numero_Clientes_Producto': 'Número de Clientes',
+            'Productos Financieros Adquiridos': 'Producto Financiero'
+        },
+        text='Numero_Clientes_Producto',
+        barmode='group',
+        color_discrete_sequence=COLORES,
+        template='plotly_white',
+        height=400
+    )
+    
+    fig.update_traces(
+        textposition='outside',
+        hovertemplate='<b>%{x}</b><br>Clientes: %{y:,.0f}<extra></extra>'
+    )
+    
+    fig.update_layout(
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
+    
+    fig = aplicar_tema(fig)
+    return fig

@@ -45,7 +45,8 @@ from modulos.visualizaciones import (
     crear_grafico_saldo_promedio_por_producto,
     crear_grafico_frecuencia_visitas,
     crear_grafico_transacciones_cajeros,
-    crear_grafico_matriz_distancias
+    crear_grafico_matriz_distancias,
+    crear_grafico_transacciones_cajeros_por_tipo
 )
 
 
@@ -152,73 +153,103 @@ def pagina_analisis_cobertura():
         st.dataframe(concentracion_stats, use_container_width=True, hide_index=True)
     
     st.divider()
-    
+
     # SECCIÓN 3: ANÁLISIS DE VOLUMEN DE TRANSACCIONES
-    
+
     crear_seccion_encabezado(
         titulo="Volumen de Transacciones por Ubicación",
-        descripcion="Análisis del movimiento transaccional en cada sucursal"
+        descripcion="Análisis del movimiento transaccional en sucursales y cajeros"
     )
-    
+
+    # DOS COLUMNAS PARA LOS DOS GRÁFICOS
     col1, col2 = st.columns(2)
-    
+
+    # GRÁFICO 1: TRANSACCIONES DE SUCURSALES
     with col1:
         try:
-            fig_transacciones = crear_grafico_transacciones_por_ubicacion(datos_consolidados)
-            st.plotly_chart(fig_transacciones, use_container_width=True)
+            fig_transacciones_sucursal = crear_grafico_transacciones_por_ubicacion(datos_consolidados)
+            st.plotly_chart(fig_transacciones_sucursal, use_container_width=True)
         except Exception as e:
-            st.error(f"Error en gráfico de transacciones: {e}")
-    
+            st.error(f"Error en gráfico de transacciones de sucursal: {e}")
+
+    # GRÁFICO 2: TRANSACCIONES DE CAJEROS POR TIPO
     with col2:
-        # Estadísticas de transacciones
-        transacciones_stats = datos_consolidados.groupby('Nombre').agg({
-            'Volumen_Transacciones_Sucursal': 'first',
-            'Volumen_Transacciones_Cajero_Diarias': 'first'
-        }).reset_index()
-        
-        transacciones_stats['Transacciones_Cajero_Mensuales'] = (
-            transacciones_stats['Volumen_Transacciones_Cajero_Diarias'] * 22
-        )
-        transacciones_stats['Total_Transacciones'] = (
-            transacciones_stats['Volumen_Transacciones_Sucursal'] + 
-            transacciones_stats['Transacciones_Cajero_Mensuales']
-        )
-        
-        transacciones_stats = transacciones_stats.sort_values(
-            'Total_Transacciones', ascending=False
-        )
-        
+        try:
+            fig_transacciones_cajeros = crear_grafico_transacciones_cajeros_por_tipo(datos_consolidados)
+            st.plotly_chart(fig_transacciones_cajeros, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error en gráfico de transacciones de cajeros: {e}")
+
+    st.divider()
+
+    # ESTADÍSTICAS (meter en una sola columna debajo)
+    crear_seccion_encabezado(
+        titulo="Detalle de Transacciones por Ubicación"
+    )
+
+    # Crear tabla consolidada
+    transacciones_stats = datos_consolidados.groupby('Nombre').agg({
+        'Volumen_Transacciones_Sucursal': 'first',
+        'Volumen_Transacciones_Cajero_Diarias': 'first'
+    }).reset_index()
+
+    transacciones_stats['Transacciones_Cajero_Mensuales'] = (
+        transacciones_stats['Volumen_Transacciones_Cajero_Diarias'] * 30
+    )
+
+    transacciones_stats = transacciones_stats.sort_values(
+        'Volumen_Transacciones_Sucursal', ascending=False
+    )
+
+    tabla_transacciones = transacciones_stats[[
+        'Nombre', 
+        'Volumen_Transacciones_Sucursal',
+        'Volumen_Transacciones_Cajero_Diarias',
+        'Transacciones_Cajero_Mensuales'
+    ]].copy()
+
+    tabla_transacciones.columns = [
+        'Ubicación',
+        'Sucursal/mes',
+        'Cajero/día',
+        'Cajero/mes'
+    ]
+
+    st.dataframe(tabla_transacciones, use_container_width=True, hide_index=True)
+
+    # MÉTRICAS LADO A LADO
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
         st.metric(
-            label="Sucursal con Mayor Volumen",
-            value=transacciones_stats.iloc[0]['Nombre'],
-            delta=f"{int(transacciones_stats.iloc[0]['Total_Transacciones']):,} transacciones/mes"
+            label="Total Sucursal/mes",
+            value=f"{int(transacciones_stats['Volumen_Transacciones_Sucursal'].sum()):,}"
         )
-        
+
+    with col2:
         st.metric(
-            label="Total Transacciones/mes",
-            value=f"{int(transacciones_stats['Total_Transacciones'].sum()):,}"
+            label="Total Cajero/mes",
+            value=f"{int(transacciones_stats['Transacciones_Cajero_Mensuales'].sum()):,}"
         )
-        
+
+    with col3:
+        total_general = (
+            transacciones_stats['Volumen_Transacciones_Sucursal'].sum() + 
+            transacciones_stats['Transacciones_Cajero_Mensuales'].sum()
+        )
         st.metric(
-            label="Promedio por Sucursal",
-            value=f"{int(transacciones_stats['Total_Transacciones'].mean()):,}"
+            label="Total General/mes",
+            value=f"{int(total_general):,}"
         )
-        
-        # Tabla de estadísticas
-        st.markdown("**Detalle de Transacciones**")
-        tabla_transacciones = transacciones_stats[[
-            'Nombre', 
-            'Volumen_Transacciones_Sucursal',
-            'Transacciones_Cajero_Mensuales',
-            'Total_Transacciones'
-        ]].copy()
-        tabla_transacciones.columns = [
-            'Sucursal',
-            'Sucursal/mes',
-            'Cajero/mes',
-            'Total/mes'
-        ]
-        st.dataframe(tabla_transacciones, use_container_width=True, hide_index=True)
+
+    with col4:
+        porcentaje_cajero = (
+            transacciones_stats['Transacciones_Cajero_Mensuales'].sum() / total_general * 100
+        )
+        st.metric(
+            label="% Transacciones Cajero",
+            value=f"{porcentaje_cajero:.1f}%"
+        )
     
     st.divider()
     

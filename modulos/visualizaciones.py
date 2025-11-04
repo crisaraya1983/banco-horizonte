@@ -653,22 +653,12 @@ def crear_grafico_concentracion_clientes(datos_consolidados):
 
 def crear_grafico_transacciones_por_ubicacion(datos_consolidados):
  
-    # Agrupar por ubicación y sumar transacciones
     transacciones = datos_consolidados.groupby('Nombre').agg({
-        'Volumen_Transacciones_Sucursal': 'first',
-        'Volumen_Transacciones_Cajero_Diarias': 'first'
-    }).reset_index()
-    
-    # Convertir transacciones diarias del cajero a mensuales
-    transacciones['Transacciones_Cajero_Mensuales'] = transacciones['Volumen_Transacciones_Cajero_Diarias'] * 22
-    transacciones['Total_Transacciones'] = (
-        transacciones['Volumen_Transacciones_Sucursal'] + 
-        transacciones['Transacciones_Cajero_Mensuales']
+        'Volumen_Transacciones_Sucursal': 'first'
+    }).reset_index().sort_values(
+        'Volumen_Transacciones_Sucursal', ascending=False
     )
     
-    transacciones = transacciones[['Nombre', 'Total_Transacciones']].sort_values(
-        'Total_Transacciones', ascending=False
-    )
     transacciones.columns = ['Sucursal', 'Transacciones_Mensuales']
     
     fig = go.Figure()
@@ -678,25 +668,84 @@ def crear_grafico_transacciones_por_ubicacion(datos_consolidados):
         y=transacciones['Transacciones_Mensuales'],
         marker=dict(
             color=transacciones['Transacciones_Mensuales'],
-            colorscale='Greens',
+            colorscale='Blues', 
             showscale=False,
             line=dict(color='white', width=1)
         ),
         text=transacciones['Transacciones_Mensuales'],
         textposition='outside',
         texttemplate='%{text:,.0f}',
-        hovertemplate='<b>%{x}</b><br>Transacciones/mes: %{y:,.0f}<extra></extra>',
-        name='Transacciones'
+        hovertemplate='<b>%{x}</b><br>Sucursal/mes: %{y:,.0f}<extra></extra>',
+        name='Sucursal'
     ))
     
     fig.update_layout(
-        title='Volumen de Transacciones Mensuales por Ubicación',
+        title='Volumen de Transacciones de Sucursales (Mensual)',
         xaxis_title='Sucursal',
         yaxis_title='Transacciones/mes',
         xaxis_tickangle=-45,
         template='plotly_white',
         height=400,
         showlegend=False
+    )
+    
+    fig = aplicar_tema(fig)
+    return fig
+
+def crear_grafico_transacciones_cajeros_por_tipo(datos_consolidados):
+
+    cajeros_data = datos_consolidados[
+        ['Nombre', 'Volumen_Transacciones_Cajero_Diarias', 'Tipos_Transacciones_Cajero']
+    ].drop_duplicates(subset=['Nombre']).reset_index(drop=True)
+    
+    cajeros_data['Transacciones_Mensuales'] = (
+        cajeros_data['Volumen_Transacciones_Cajero_Diarias'] * 30
+    )
+    
+    cajeros_data['Retiro'] = cajeros_data['Transacciones_Mensuales'] / 3
+    cajeros_data['Consulta'] = cajeros_data['Transacciones_Mensuales'] / 3
+    cajeros_data['Pago'] = cajeros_data['Transacciones_Mensuales'] / 3
+    
+    cajeros_data = cajeros_data.sort_values(
+        'Transacciones_Mensuales', ascending=False
+    )
+    
+    fig = go.Figure()
+    
+    colores = {'Retiro': '#27ae60', 'Consulta': '#3498db', 'Pago': '#f39c12'}
+    
+    for tipo in ['Retiro', 'Consulta', 'Pago']:
+        fig.add_trace(go.Bar(
+            x=cajeros_data['Nombre'],
+            y=cajeros_data[tipo],
+            name=tipo,
+            marker=dict(color=colores[tipo]),
+            text=cajeros_data[tipo].astype(int),
+            textposition='inside',
+            texttemplate='%{text:,.0f}',
+            hovertemplate='<b>%{x}</b><br>' + tipo + ': %{y:,.0f}<extra></extra>'
+        ))
+    
+    fig.update_layout(
+        title='Volumen de Transacciones de Cajeros por Tipo (Mensual)',
+        xaxis_title='Ubicación',
+        yaxis_title='Transacciones/mes',
+        xaxis_tickangle=-45,
+        barmode='stack',
+        template='plotly_white',
+        height=500,
+        margin=dict(b=100, r=250),
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=1.15,
+            bgcolor="rgba(255,255,255,0.8)",
+            bordercolor="lightgray",
+            borderwidth=1
+        ),
+        font=dict(size=12)
     )
     
     fig = aplicar_tema(fig)

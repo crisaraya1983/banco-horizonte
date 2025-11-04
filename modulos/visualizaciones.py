@@ -954,3 +954,196 @@ def crear_mapa_segmentacion_geografica(datos_consolidados):
     mapa.get_root().html.add_child(folium.Element(legend_html))
     
     return mapa, sucursales_data
+
+def crear_mapa_rutas_mantenimiento(sucursales_df, rutas_df):
+ 
+    # Centro del mapa
+    centro_lat = sucursales_df['Latitud'].mean()
+    centro_lon = sucursales_df['Longitud'].mean()
+    
+    mapa = folium.Map(
+        location=[centro_lat, centro_lon],
+        zoom_start=7,
+        tiles="OpenStreetMap",
+        prefer_canvas=True
+    )
+    
+    # Colores
+    color_principal = '#2c5aa0'
+    color_secundaria = '#27ae60'
+    color_linea = '#f39c12'
+    
+    # Agregar Sucursales Principales (marcadores grandes)
+    principales = sucursales_df[sucursales_df['Tipo de Sucursal'] == 'Sucursal Principal']
+    
+    for idx, row in principales.iterrows():
+        # Calcular cuántas sucursales atiende
+        rutas_desde = rutas_df[rutas_df['Sucursal_Origen'] == row['Nombre']]
+        num_atendidas = len(rutas_desde)
+        distancia_total = rutas_desde['Distancia_km'].sum()
+        
+        popup_text = f"""
+        <div style="font-family: Arial; width: 250px;">
+            <h4 style="margin: 5px 0; color: {color_principal};">
+                {row['Nombre']}
+            </h4>
+            <hr style="margin: 5px 0;">
+            <p style="margin: 5px 0;"><b>Tipo:</b> {row['Tipo de Sucursal']}</p>
+            <p style="margin: 5px 0;"><b>Sucursales Atendidas:</b> {num_atendidas}</p>
+            <p style="margin: 5px 0;"><b>Distancia Total:</b> {distancia_total:.2f} km</p>
+            <p style="margin: 5px 0;"><b>Empleados:</b> {row['Número de Empleados']}</p>
+        </div>
+        """
+        
+        folium.Marker(
+            location=[row['Latitud'], row['Longitud']],
+            popup=folium.Popup(popup_text, max_width=300),
+            tooltip=f"{row['Nombre']} - {num_atendidas} rutas",
+            icon=folium.Icon(
+                color='blue',
+                icon='home',
+                prefix='fa'
+            )
+        ).add_to(mapa)
+        
+        # Círculo grande alrededor
+        folium.Circle(
+            location=[row['Latitud'], row['Longitud']],
+            radius=2000,
+            popup=row['Nombre'],
+            color=color_principal,
+            fill=True,
+            fillColor=color_principal,
+            fillOpacity=0.15,
+            weight=2
+        ).add_to(mapa)
+    
+    # Agregar Sucursales Secundarias (marcadores pequeños)
+    secundarias = sucursales_df[sucursales_df['Tipo de Sucursal'] == 'Sucursal Secundaria']
+    
+    for idx, row in secundarias.iterrows():
+        # Encontrar desde qué principal es atendida
+        ruta_info = rutas_df[rutas_df['Sucursal_Destino'] == row['Nombre']]
+        
+        if len(ruta_info) > 0:
+            origen = ruta_info.iloc[0]['Sucursal_Origen']
+            distancia = ruta_info.iloc[0]['Distancia_km']
+            tiempo = ruta_info.iloc[0]['Tiempo_Estimado_min']
+        else:
+            origen = "No asignada"
+            distancia = 0
+            tiempo = 0
+        
+        popup_text = f"""
+        <div style="font-family: Arial; width: 250px;">
+            <h4 style="margin: 5px 0; color: {color_secundaria};">
+                {row['Nombre']}
+            </h4>
+            <hr style="margin: 5px 0;">
+            <p style="margin: 5px 0;"><b>Tipo:</b> {row['Tipo de Sucursal']}</p>
+            <p style="margin: 5px 0;"><b>Atendida desde:</b> {origen}</p>
+            <p style="margin: 5px 0;"><b>Distancia:</b> {distancia:.2f} km</p>
+            <p style="margin: 5px 0;"><b>Tiempo estimado:</b> {tiempo} min</p>
+            <p style="margin: 5px 0;"><b>Empleados:</b> {row['Número de Empleados']}</p>
+        </div>
+        """
+        
+        folium.CircleMarker(
+            location=[row['Latitud'], row['Longitud']],
+            radius=8,
+            popup=folium.Popup(popup_text, max_width=300),
+            tooltip=f"{row['Nombre']}",
+            color='white',
+            fill=True,
+            fillColor=color_secundaria,
+            fillOpacity=0.9,
+            weight=3
+        ).add_to(mapa)
+    
+    # Agregar líneas de rutas
+    for idx, ruta in rutas_df.iterrows():
+        # Línea de ruta
+        folium.PolyLine(
+            locations=[
+                [ruta['Lat_Origen'], ruta['Lon_Origen']],
+                [ruta['Lat_Destino'], ruta['Lon_Destino']]
+            ],
+            color=color_linea,
+            weight=3,
+            opacity=0.7,
+            popup=f"""
+            <b>Ruta:</b> {ruta['Sucursal_Origen']} → {ruta['Sucursal_Destino']}<br>
+            <b>Distancia:</b> {ruta['Distancia_km']:.2f} km<br>
+            <b>Tiempo:</b> {ruta['Tiempo_Estimado_min']} min
+            """,
+            tooltip=f"{ruta['Distancia_km']:.2f} km"
+        ).add_to(mapa)
+        
+        # Flecha direccional (usando un marcador pequeño en el punto medio)
+        lat_medio = (ruta['Lat_Origen'] + ruta['Lat_Destino']) / 2
+        lon_medio = (ruta['Lon_Origen'] + ruta['Lon_Destino']) / 2
+        
+        folium.CircleMarker(
+            location=[lat_medio, lon_medio],
+            radius=4,
+            color=color_linea,
+            fill=True,
+            fillColor=color_linea,
+            fillOpacity=1.0,
+            weight=2,
+            tooltip=f"{ruta['Distancia_km']:.2f} km"
+        ).add_to(mapa)
+    
+    # Leyenda
+    legend_html = """
+    <div style="position: fixed; 
+            bottom: 50px; right: 50px; width: 280px; 
+            background-color: white; border: 2px solid #2c5aa0; 
+            border-radius: 8px; z-index: 9999; font-size: 13px; padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+        <h4 style="margin: 0 0 10px 0; color: #2c5aa0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+            Leyenda de Rutas
+        </h4>
+        
+        <div style="margin: 8px 0;">
+            <p style="margin: 5px 0;">
+                <i class="fa fa-home" style="color: #2c5aa0; font-size: 16px;"></i>
+                <b style="margin-left: 8px;">Sucursal Principal</b>
+            </p>
+            <p style="margin: 3px 0 8px 24px; font-size: 11px; color: #718096;">
+                Punto de salida para mantenimiento
+            </p>
+        </div>
+        
+        <div style="margin: 8px 0;">
+            <p style="margin: 5px 0;">
+                <span style="display: inline-block; width: 16px; height: 16px; 
+                             background-color: #27ae60; border-radius: 50%; 
+                             vertical-align: middle;"></span>
+                <b style="margin-left: 8px;">Sucursal Secundaria</b>
+            </p>
+            <p style="margin: 3px 0 8px 24px; font-size: 11px; color: #718096;">
+                Recibe mantenimiento
+            </p>
+        </div>
+        
+        <div style="margin: 8px 0;">
+            <p style="margin: 5px 0;">
+                <span style="display: inline-block; width: 30px; height: 3px; 
+                             background-color: #f39c12; vertical-align: middle;"></span>
+                <b style="margin-left: 8px;">Ruta de Mantenimiento</b>
+            </p>
+            <p style="margin: 3px 0 8px 24px; font-size: 11px; color: #718096;">
+                Muestra distancia en km
+            </p>
+        </div>
+        
+        <hr style="margin: 10px 0; border: 1px solid #e2e8f0;">
+        <p style="margin: 5px 0; font-size: 11px; color: #718096;">
+            💡 <b>Clic</b> en marcadores para ver detalles
+        </p>
+    </div>
+    """
+    mapa.get_root().html.add_child(folium.Element(legend_html))
+    
+    return mapa

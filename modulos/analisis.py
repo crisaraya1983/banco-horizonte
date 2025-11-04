@@ -20,7 +20,8 @@ from modulos.geoespacial import (
     agrupar_clientes_por_proximidad,
     calcular_densidad_clientes_por_sucursal,
     calcular_centroide_geográfico,
-    distancia_haversine
+    distancia_haversine,
+    calcular_rutas_mantenimiento  
 )
 
 from modulos.componentes import (
@@ -47,7 +48,8 @@ from modulos.visualizaciones import (
     crear_grafico_transacciones_cajeros,
     crear_grafico_matriz_distancias,
     crear_grafico_transacciones_cajeros_por_tipo,
-    crear_mapa_segmentacion_geografica
+    crear_mapa_segmentacion_geografica,
+    crear_mapa_rutas_mantenimiento  
 )
 
 
@@ -401,15 +403,17 @@ def pagina_segmentacion_geografica():
 # OPTIMIZACIÓN LOGÍSTICA
 
 def pagina_optimizacion_logistica():
-    """
-    Optimización de rutas de mantenimiento para cajeros automáticos.
-    """
+
+    crear_seccion_encabezado(
+        titulo="Optimización Logística de Cajeros Automáticos",
+        descripcion="Análisis de distribución y rutas óptimas para mantenimiento y reposición"
+    )
     
-    crear_seccion_encabezado(titulo="Optimización Logística")
-    
+    sucursales = cargar_sucursales()
     cajeros = cargar_cajeros()
     
-    crear_seccion_encabezado(titulo="Resumen de Cajeros")
+    # SECCIÓN 1: Resumen de Cajeros
+    crear_seccion_encabezado(titulo="Resumen de Cajeros Automáticos")
     
     col1, col2, col3 = st.columns(3)
     
@@ -421,71 +425,135 @@ def pagina_optimizacion_logistica():
         st.metric("Transacciones/día", int(transacciones_total))
     
     with col3:
-        dispersión = cajeros['Latitud'].std() + cajeros['Longitud'].std()
-        st.metric("Dispersión Geográfica", f"{dispersión:.2f}")
+        tipos_transacciones = cajeros['Tipo de Transacciones'].nunique()
+        st.metric("Tipos de Transacciones", tipos_transacciones)
+    
+    # Mostrar detalle de tipos de transacciones
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        tipos_dist = cajeros['Tipo de Transacciones'].value_counts()
+        st.markdown("**Distribución por Tipo:**")
+        for tipo, cantidad in tipos_dist.items():
+            st.write(f"• {tipo}: {cantidad} cajeros")
+    
+    with col2:
+        st.markdown("**Volumen por Tipo:**")
+        vol_por_tipo = cajeros.groupby('Tipo de Transacciones')['Volumen de Transacciones Diarias'].sum()
+        for tipo, volumen in vol_por_tipo.items():
+            st.write(f"• {tipo}: {int(volumen):,} transacciones/día")
     
     st.divider()
     
-    # Matriz de distancias
-    crear_seccion_encabezado(titulo="Matriz de Distancias")
+    # SECCIÓN 2: Matriz de Distancias entre Sucursales
+    crear_seccion_encabezado(
+        titulo="Matriz de Distancias entre Sucursales",
+        descripcion="Distancias en kilómetros entre todas las ubicaciones"
+    )
     
-    matriz_dist = crear_matriz_distancias(cajeros)
+    matriz_dist = crear_matriz_distancias(sucursales)
+    nombres_sucursales = sucursales['Nombre'].tolist()
+    
     fig_matriz = crear_grafico_matriz_distancias(
         matriz_dist,
-        etiquetas=[f"Cajero {i+1}" for i in range(len(cajeros))]
+        etiquetas=nombres_sucursales
     )
     st.plotly_chart(fig_matriz, use_container_width=True)
     
     st.divider()
     
-    # Carga de trabajo
-    crear_seccion_encabezado(titulo="Carga de Trabajo por Cajero")
+    # SECCIÓN 3: Rutas Óptimas de Mantenimiento
+    crear_seccion_encabezado(
+        titulo="Plan de Rutas Óptimas para Mantenimiento y Reposición",
+        descripcion="Sucursales Principales atienden a Sucursales Secundarias más cercanas"
+    )
     
-    fig_cajeros = crear_grafico_transacciones_cajeros(cajeros)
-    st.plotly_chart(fig_cajeros, use_container_width=True)
+    rutas_optimas = calcular_rutas_mantenimiento(sucursales)
+    
+    # Mapa de rutas
+    st.markdown("### Mapa de Rutas de Mantenimiento")
+    
+    try:
+        mapa_rutas = crear_mapa_rutas_mantenimiento(sucursales, rutas_optimas)
+        st.components.v1.html(mapa_rutas._repr_html_(), height=600, width=None)
+    except Exception as e:
+        st.error(f"Error al generar el mapa: {e}")
     
     st.divider()
     
-    # Ruta propuesta
-    crear_seccion_encabezado(titulo="Ruta Óptima Propuesta")
+    # Tabla de Rutas
+    st.markdown("### Detalle del Plan de Mantenimiento")
     
-    visitados = set()
-    posicion_actual = 0
-    ruta = [0]
-    distancia_total = 0
+    col1, col2 = st.columns([2, 1])
     
-    while len(visitados) < len(cajeros):
-        visitados.add(posicion_actual)
-        distancias_candidatos = []
-        for j in range(len(cajeros)):
-            if j not in visitados:
-                distancias_candidatos.append((matriz_dist[posicion_actual, j], j))
-        
-        if distancias_candidatos:
-            dist_min, siguiente = min(distancias_candidatos)
-            distancia_total += dist_min
-            ruta.append(siguiente)
-            posicion_actual = siguiente
-    
-    distancia_total += matriz_dist[ruta[-1], ruta[0]]
-    
-    ruta_tabla = []
-    for i, idx_cajero in enumerate(ruta):
-        ruta_tabla.append({
-            'Orden': i + 1,
-            'Cajero': f"Cajero {idx_cajero + 1}",
-            'Latitud': f"{cajeros.iloc[idx_cajero]['Latitud']:.4f}",
-            'Longitud': f"{cajeros.iloc[idx_cajero]['Longitud']:.4f}",
-            'Transacciones/día': int(cajeros.iloc[idx_cajero]['Volumen de Transacciones Diarias'])
-        })
-    
-    st.dataframe(pd.DataFrame(ruta_tabla), use_container_width=True, hide_index=True)
-    
-    col1, col2 = st.columns(2)
     with col1:
-        st.metric("Distancia Total", f"{distancia_total:.2f} km")
+        st.dataframe(
+            rutas_optimas[['Sucursal_Origen', 'Tipo_Origen', 'Sucursal_Destino', 
+                          'Tipo_Destino', 'Distancia_km', 'Tiempo_Estimado_min']],
+            use_container_width=True,
+            hide_index=True
+        )
+    
     with col2:
-        st.metric("Distancia Promedio", f"{distancia_total / len(cajeros):.2f} km")
+        st.markdown("**Métricas del Plan:**")
+        
+        distancia_total = rutas_optimas['Distancia_km'].sum()
+        st.metric("Distancia Total", f"{distancia_total:.2f} km")
+        
+        tiempo_total = rutas_optimas['Tiempo_Estimado_min'].sum()
+        st.metric("Tiempo Total", f"{int(tiempo_total)} min")
+        
+        num_rutas = len(rutas_optimas)
+        st.metric("Número de Rutas", num_rutas)
+        
+        distancia_promedio = distancia_total / num_rutas if num_rutas > 0 else 0
+        st.metric("Distancia Promedio", f"{distancia_promedio:.2f} km")
+    
+    st.divider()
+    
+    # SECCIÓN 4: Análisis por Sucursal Principal
+    crear_seccion_encabezado(titulo="Análisis por Sucursal Principal")
+    
+    sucursales_principales = sucursales[sucursales['Tipo de Sucursal'] == 'Sucursal Principal']
+    
+    tabs = st.tabs([row['Nombre'] for _, row in sucursales_principales.iterrows()])
+    
+    for tab, (_, sucursal_principal) in zip(tabs, sucursales_principales.iterrows()):
+        with tab:
+            rutas_sucursal = rutas_optimas[
+                rutas_optimas['Sucursal_Origen'] == sucursal_principal['Nombre']
+            ]
+            
+            if len(rutas_sucursal) > 0:
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric(
+                        "Sucursales Atendidas",
+                        len(rutas_sucursal)
+                    )
+                
+                with col2:
+                    st.metric(
+                        "Distancia Total",
+                        f"{rutas_sucursal['Distancia_km'].sum():.2f} km"
+                    )
+                
+                with col3:
+                    st.metric(
+                        "Tiempo Total",
+                        f"{int(rutas_sucursal['Tiempo_Estimado_min'].sum())} min"
+                    )
+                
+                st.markdown("**Rutas asignadas:**")
+                st.dataframe(
+                    rutas_sucursal[['Sucursal_Destino', 'Distancia_km', 'Tiempo_Estimado_min']],
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("Esta sucursal principal no tiene sucursales secundarias asignadas.")
+    
 
 
 # PÁGINA 4: MARKETING DIRIGIDO

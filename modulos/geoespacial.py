@@ -157,3 +157,44 @@ def calcular_cobertura_geográfica(clientes_df, cajeros_df, sucursales_df,
         'clientes_con_cobertura_completa': int(cobertura_completa * len(clientes)),
         'clientes_sin_cobertura_completa': int((1 - cobertura_completa) * len(clientes))
     }
+
+def calcular_rutas_mantenimiento(sucursales_df):
+
+    principales = sucursales_df[sucursales_df['Tipo de Sucursal'] == 'Sucursal Principal'].copy()
+    secundarias = sucursales_df[sucursales_df['Tipo de Sucursal'] == 'Sucursal Secundaria'].copy()
+    
+    rutas = []
+    
+    # Para cada sucursal secundaria, encontrar la principal más cercana
+    for idx_sec, secundaria in secundarias.iterrows():
+        distancia_minima = float('inf')
+        principal_mas_cercana = None
+        
+        for idx_prin, principal in principales.iterrows():
+            distancia = distancia_haversine(
+                secundaria['Latitud'], secundaria['Longitud'],
+                principal['Latitud'], principal['Longitud']
+            )
+            
+            if distancia < distancia_minima:
+                distancia_minima = distancia
+                principal_mas_cercana = principal
+        
+        if principal_mas_cercana is not None:
+            # Estimar tiempo de viaje (asumiendo 40 km/h promedio)
+            tiempo_estimado = (distancia_minima / 40) * 60  # en minutos
+            
+            rutas.append({
+                'Sucursal_Origen': principal_mas_cercana['Nombre'],
+                'Tipo_Origen': principal_mas_cercana['Tipo de Sucursal'],
+                'Lat_Origen': principal_mas_cercana['Latitud'],
+                'Lon_Origen': principal_mas_cercana['Longitud'],
+                'Sucursal_Destino': secundaria['Nombre'],
+                'Tipo_Destino': secundaria['Tipo de Sucursal'],
+                'Lat_Destino': secundaria['Latitud'],
+                'Lon_Destino': secundaria['Longitud'],
+                'Distancia_km': round(distancia_minima, 2),
+                'Tiempo_Estimado_min': int(tiempo_estimado)
+            })
+    
+    return pd.DataFrame(rutas)

@@ -14,7 +14,6 @@ def cargar_sucursales():
         sep=";"
     )
     
-    # Transformación 1: Parsear la ubicación de string a coordenadas numéricas
     df[["Latitud", "Longitud"]] = df["Ubicación"].str.strip("()").str.split(", ", expand=True)
     df["Latitud"] = pd.to_numeric(df["Latitud"])
     df["Longitud"] = pd.to_numeric(df["Longitud"])
@@ -98,7 +97,6 @@ def obtener_ubicaciones_con_productos():
     df_clientes = cargar_clientes()
     df_productos = cargar_productos()
     
-    # Merge 1: Sucursales con Clientes por ubicación
     df_merge1 = df_sucursales.merge(
         df_clientes,
         left_on='Ubicación',
@@ -107,7 +105,6 @@ def obtener_ubicaciones_con_productos():
         suffixes=('_sucursal', '_cliente')
     )
     
-    # Merge 2: Agregar productos usando Tipo de Sucursal + Producto Financiero
     df_merge2 = df_merge1.merge(
         df_productos,
         left_on=['Tipo de Sucursal', 'Productos Financieros Adquiridos'],
@@ -115,7 +112,6 @@ def obtener_ubicaciones_con_productos():
         how='left'
     )
     
-    # Seleccionar y renombrar columnas finales
     columnas_resultado = [
         'Ubicación',
         'Nombre',
@@ -146,65 +142,6 @@ def obtener_ubicaciones_con_productos():
     
     return df_resultado
 
-
-@st.cache_data
-def obtener_resumen_por_sucursal():
-
-    df_ubicaciones = obtener_ubicaciones_con_productos()
-    df_sucursales = cargar_sucursales()
-    
-    # Agregar por sucursal
-    df_resumen = df_ubicaciones.groupby(['Ubicación', 'Sucursal', 'Tipo de Sucursal']).agg({
-        'Tipo de Producto': lambda x: ', '.join(x.unique()),
-        'Clientes del Producto': 'sum',
-        'Volumen de Ventas': 'sum',
-        'Volumen de Transacciones Zona': 'first',
-        'Saldo Promedio Zona': 'first'
-    }).reset_index()
-    
-    # Agregar información de sucursal (empleados, transacciones)
-    df_resumen = df_resumen.merge(
-        df_sucursales[['Ubicación', 'Número de Empleados', 'Volumen de Transacciones (mes)']],
-        on='Ubicación',
-        how='left'
-    )
-    
-    df_resumen.columns = [
-        'Ubicación',
-        'Sucursal',
-        'Tipo de Sucursal',
-        'Productos Ofrecidos',
-        'Total Clientes',
-        'Total Volumen Ventas',
-        'Volumen Transacciones Zona',
-        'Saldo Promedio Zona',
-        'Empleados',
-        'Volumen Transacciones Sucursal Mensual'
-    ]
-    
-    # Reordenar columnas para mejor presentación
-    orden_columnas = [
-        'Ubicación',
-        'Sucursal',
-        'Tipo de Sucursal',
-        'Empleados',
-        'Volumen Transacciones Sucursal Mensual',
-        'Productos Ofrecidos',
-        'Total Clientes',
-        'Total Volumen Ventas',
-        'Volumen Transacciones Zona',
-        'Saldo Promedio Zona'
-    ]
-    
-    df_resumen = df_resumen[orden_columnas]
-    
-    return df_resumen
-
-"""
-FUNCIÓN PARA AGREGAR A modulos/carga_datos.py
-
-Copia esta función completa al final de tu archivo carga_datos.py
-"""
 
 @st.cache_data
 def obtener_datos_consolidados():
@@ -276,33 +213,3 @@ def obtener_datos_consolidados():
     
     return consolidado
 
-@st.cache_data
-def obtener_matriz_distancias_sucursales():
-
-    from modulos.geoespacial import distancia_haversine
-    
-    sucursales = cargar_sucursales()
-    
-    distancias = []
-    
-    for idx1, row1 in sucursales.iterrows():
-        for idx2, row2 in sucursales.iterrows():
-            if idx1 != idx2:
-                distancia = distancia_haversine(
-                    row1['Latitud'], row1['Longitud'],
-                    row2['Latitud'], row2['Longitud']
-                )
-                
-                distancias.append({
-                    'Sucursal_Origen': row1['Nombre'],
-                    'Latitud_Origen': row1['Latitud'],
-                    'Longitud_Origen': row1['Longitud'],
-                    'Ubicación_Origen': row1['Ubicación'],
-                    'Sucursal_Destino': row2['Nombre'],
-                    'Latitud_Destino': row2['Latitud'],
-                    'Longitud_Destino': row2['Longitud'],
-                    'Ubicación_Destino': row2['Ubicación'],
-                    'Distancia_km': round(distancia, 2)
-                })
-    
-    return pd.DataFrame(distancias)

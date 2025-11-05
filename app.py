@@ -4,12 +4,9 @@ from pathlib import Path
 
 from modulos.carga_datos import (
     cargar_sucursales, cargar_cajeros, cargar_clientes, 
-    cargar_productos, cargar_todos_los_datos,
-    obtener_productos_consolidados,
+    cargar_productos, obtener_productos_consolidados,
     obtener_datos_consolidados
 )
-
-from modulos.geoespacial import calcular_cobertura_geográfica
 
 from modulos.analisis import (
     pagina_analisis_cobertura,
@@ -94,7 +91,6 @@ def aplicar_estilos():
     </style>
     """, unsafe_allow_html=True)
     
-    # Inicializar componentes personalizados
     inicializar_componentes()
 
 
@@ -105,13 +101,11 @@ def pagina_inicio():
     st.markdown('<div class="main-header">Análisis Geoespacial</div>', 
                 unsafe_allow_html=True)
     
-    # Cargar datos
     sucursales = cargar_sucursales()
     cajeros = cargar_cajeros()
     clientes = cargar_clientes()
     productos = cargar_productos()
     
-    # Sección 1: Métricas principales
     st.markdown('<div class="section-header">Resumen de Datos</div>', 
                 unsafe_allow_html=True)
     
@@ -133,7 +127,6 @@ def pagina_inicio():
     
     st.divider()
     
-    # Sección 2: Distribución de Clientes por Sucursal
     st.markdown('<div class="section-header">Cobertura de Clientes por Sucursal</div>', 
                 unsafe_allow_html=True)
     
@@ -151,7 +144,6 @@ def pagina_inicio():
     
     clientes_por_sucursal_sorted = clientes_por_sucursal.sort_values('Total_Clientes', ascending=False).reset_index(drop=True)
     
-    # Crear columnas para mostrar las métricas en 2 columnas
     cols = st.columns(5)
     
     for idx, row in clientes_por_sucursal_sorted.iterrows():
@@ -164,7 +156,6 @@ def pagina_inicio():
   
     st.divider()
     
-    # Sección 3: Vista previa de datos
     st.markdown('<div class="section-header">Datos Disponibles</div>', 
                 unsafe_allow_html=True)
     
@@ -182,8 +173,6 @@ def pagina_inicio():
     with tab4:
         st.dataframe(productos, use_container_width=True, hide_index=True)
 
-
-# NAVEGACIÓN PRINCIPAL
 
 def main():
 
@@ -208,7 +197,6 @@ def main():
             label_visibility="collapsed"
         )
     
-    # Enrutamiento
     if pagina_seleccionada == "Inicio":
         pagina_inicio()
     elif pagina_seleccionada == "Análisis de Cobertura":

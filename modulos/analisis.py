@@ -1,54 +1,27 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LinearRegression
-from sklearn.cluster import KMeans
 import plotly.graph_objects as go
-import plotly.express as px
 
 from modulos.carga_datos import (
     cargar_sucursales, cargar_cajeros, cargar_clientes, cargar_productos,
     obtener_datos_consolidados
 )
 from modulos.geoespacial import (
-    calcular_cobertura_geográfica,
-    calcular_distancia_a_sucursal_mas_cercana,
-    calcular_distancia_a_cajero_mas_cercano,
-    identificar_zonas_desatendidas,
     crear_matriz_distancias,
-    agrupar_clientes_por_proximidad,
-    calcular_densidad_clientes_por_sucursal,
-    calcular_centroide_geográfico,
-    distancia_haversine,
     calcular_rutas_mantenimiento,
     identificar_riesgos_geoespaciales,
-    calcular_cobertura_vs_demanda,
     identificar_ubicaciones_optimas_sucursales  
 )
 
 from modulos.componentes import (
-    crear_seccion_encabezado,
-    crear_tarjeta_metrica,
-    crear_tarjeta_informativa,
-    crear_panel_estadisticas,
-    crear_indicador_estado,
-    crear_linea_separadora
+    crear_seccion_encabezado
 )
 
 from modulos.visualizaciones import (
-    crear_mapa_sucursales_cajeros,
-    crear_mapa_cobertura_clientes,
     crear_mapa_cobertura_con_radios,
     crear_grafico_concentracion_clientes,
     crear_grafico_transacciones_por_ubicacion,
     crear_grafico_comparativa_cobertura_clientes,
-    crear_grafico_volumen_transacciones,
-    crear_grafico_empleados_vs_transacciones,
-    crear_grafico_productos_por_ubicacion,
-    crear_grafico_saldo_promedio_por_producto,
-    crear_grafico_frecuencia_visitas,
-    crear_grafico_transacciones_cajeros,
     crear_grafico_matriz_distancias,
     crear_grafico_transacciones_cajeros_por_tipo,
     crear_mapa_segmentacion_geografica,
@@ -58,11 +31,7 @@ from modulos.visualizaciones import (
     crear_analisis_productos_por_tipo_sucursal,
     crear_comparativa_clientes_por_tipo_sucursal,
     crear_mapa_riesgos_geoespaciales,
-    crear_grafico_riesgo_score,
-    crear_grafico_factores_riesgo,
-    crear_mapa_oportunidades_cobertura,
-    crear_matriz_factores_riesgo,
-    crear_mapa_oportunidades_sucursales  
+    crear_grafico_riesgo_score
 )
 
 from modulos.predicciones import (
@@ -78,22 +47,13 @@ from modulos.predicciones import (
 # PÁGINA 1: ANÁLISIS DE COBERTURA GEOGRÁFICA
 
 def pagina_analisis_cobertura():
-    """
-    Página principal de análisis de cobertura geográfica.
-    Analiza la cobertura de sucursales y cajeros automáticos en el territorio.
-    """
-    
-    # Cargar datos consolidados
+
     datos_consolidados = obtener_datos_consolidados()
     
-    # Obtener ubicaciones únicas de sucursales
     ubicaciones_sucursales = datos_consolidados[
         ['Nombre', 'Latitud', 'Longitud', 'Tipo de Sucursal', 
          'Número de Empleados', 'Volumen_Transacciones_Sucursal']
     ].drop_duplicates(subset=['Nombre']).reset_index(drop=True)
-    
-    
-    # SECCIÓN 1: MAPA DE COBERTURA CON RADIOS
     
     crear_seccion_encabezado(
         titulo="Mapa de Cobertura de Sucursales y Cajeros"
@@ -133,8 +93,6 @@ def pagina_analisis_cobertura():
     
     st.divider()
     
-    # SECCIÓN 2: ANÁLISIS DE CONCENTRACIÓN DE CLIENTES
-    
     crear_seccion_encabezado(
         titulo="Análisis de Concentración de Clientes",
         descripcion="Distribución de clientes por sucursal"
@@ -150,7 +108,6 @@ def pagina_analisis_cobertura():
             st.error(f"Error en gráfico de concentración: {e}")
     
     with col2:
-        # Estadísticas de concentración
         concentracion_stats = datos_consolidados.groupby('Nombre').agg({
             'Numero_Clientes_Producto': 'sum'
         }).reset_index()
@@ -173,23 +130,18 @@ def pagina_analisis_cobertura():
             value=f"{int(concentracion_stats['Total_Clientes'].mean()):,}"
         )
         
-        # Tabla de estadísticas
         st.markdown("**Detalle por Sucursal**")
         st.dataframe(concentracion_stats, use_container_width=True, hide_index=True)
     
     st.divider()
-
-    # SECCIÓN 3: ANÁLISIS DE VOLUMEN DE TRANSACCIONES
 
     crear_seccion_encabezado(
         titulo="Volumen de Transacciones por Ubicación",
         descripcion="Análisis del movimiento transaccional en sucursales y cajeros"
     )
 
-    # DOS COLUMNAS PARA LOS DOS GRÁFICOS
     col1, col2 = st.columns(2)
 
-    # GRÁFICO 1: TRANSACCIONES DE SUCURSALES
     with col1:
         try:
             fig_transacciones_sucursal = crear_grafico_transacciones_por_ubicacion(datos_consolidados)
@@ -197,7 +149,6 @@ def pagina_analisis_cobertura():
         except Exception as e:
             st.error(f"Error en gráfico de transacciones de sucursal: {e}")
 
-    # GRÁFICO 2: TRANSACCIONES DE CAJEROS POR TIPO
     with col2:
         try:
             fig_transacciones_cajeros = crear_grafico_transacciones_cajeros_por_tipo(datos_consolidados)
@@ -207,12 +158,10 @@ def pagina_analisis_cobertura():
 
     st.divider()
 
-    # ESTADÍSTICAS (meter en una sola columna debajo)
     crear_seccion_encabezado(
         titulo="Detalle de Transacciones por Ubicación"
     )
 
-    # Crear tabla consolidada
     transacciones_stats = datos_consolidados.groupby('Nombre').agg({
         'Volumen_Transacciones_Sucursal': 'first',
         'Volumen_Transacciones_Cajero_Diarias': 'first'
@@ -242,7 +191,6 @@ def pagina_analisis_cobertura():
 
     st.dataframe(tabla_transacciones, use_container_width=True, hide_index=True)
 
-    # MÉTRICAS LADO A LADO
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -278,8 +226,6 @@ def pagina_analisis_cobertura():
     
     st.divider()
     
-    # SECCIÓN 4: COMPARATIVA COBERTURA VS CLIENTES
-    
     crear_seccion_encabezado(
         titulo="Análisis: Cobertura vs Concentración de Clientes",
         descripcion="Relación entre transacciones y clientes por sucursal"
@@ -300,10 +246,8 @@ def pagina_analisis_cobertura():
 
 def pagina_segmentacion_geografica():
     
-    # Cargar datos consolidados
     datos_consolidados = obtener_datos_consolidados()
     
-    # SECCIÓN 1: MAPA DE SEGMENTACIÓN
     crear_seccion_encabezado(
         titulo="Mapa de Segmentación: Clientes vs. Transacciones por Sucursal"
     )
@@ -316,18 +260,15 @@ def pagina_segmentacion_geografica():
     
     st.divider()
     
-    # SECCIÓN 2: ANÁLISIS DE EFICIENCIA
     crear_seccion_encabezado(
         titulo="Análisis de Eficiencia Operativa por Sucursal"
     )
     
-    # Tabla de estadísticas
     col1, col2 = st.columns([2, 1])
     
     with col1:
         st.markdown("**Detalle de Sucursales**")
         
-        # Crear tabla formateada
         tabla_eficiencia = datos_sucursales[[
             'Nombre', 
             'Tipo de Sucursal',
@@ -367,18 +308,15 @@ def pagina_segmentacion_geografica():
     
     st.divider()
     
-    # SECCIÓN 3: IDENTIFICACIÓN DE ZONAS ESTRATÉGICAS
     crear_seccion_encabezado(
         titulo="Identificación de Zonas Estratégicas"
     )
     
-    # Calcular cuartiles para segmentación
     q_clientes_75 = datos_sucursales['Numero_Clientes_Producto'].quantile(0.75)
     q_transacciones_75 = datos_sucursales['Volumen_Transacciones_Sucursal'].quantile(0.75)
     q_clientes_25 = datos_sucursales['Numero_Clientes_Producto'].quantile(0.25)
     q_transacciones_25 = datos_sucursales['Volumen_Transacciones_Sucursal'].quantile(0.25)
     
-    # Categorizar sucursales
     def categorizar_sucursal(row):
         clientes = row['Numero_Clientes_Producto']
         transacciones = row['Volumen_Transacciones_Sucursal']
@@ -421,7 +359,6 @@ def pagina_segmentacion_geografica():
                 st.info("No hay sucursales en esta categoría")
 
 
-
 # OPTIMIZACIÓN LOGÍSTICA
 
 def pagina_optimizacion_logistica():
@@ -429,7 +366,6 @@ def pagina_optimizacion_logistica():
     sucursales = cargar_sucursales()
     cajeros = cargar_cajeros()
     
-    # SECCIÓN 1: Resumen de Cajeros
     crear_seccion_encabezado(titulo="Resumen de Cajeros Automáticos")
     
     col1, col2, col3 = st.columns(3)
@@ -447,7 +383,6 @@ def pagina_optimizacion_logistica():
     
     st.divider()
     
-    # SECCIÓN 2: Matriz de Distancias entre Sucursales
     crear_seccion_encabezado(
         titulo="Matriz de Distancias entre Sucursales",
         descripcion="Distancias en kilómetros entre todas las ubicaciones"
@@ -464,7 +399,6 @@ def pagina_optimizacion_logistica():
     
     st.divider()
     
-    # SECCIÓN 3: Rutas Óptimas de Mantenimiento
     crear_seccion_encabezado(
         titulo="Plan de Rutas Óptimas para Mantenimiento y Reposición",
         descripcion="Sucursales Principales atienden a Sucursales Secundarias más cercanas"
@@ -472,7 +406,6 @@ def pagina_optimizacion_logistica():
     
     rutas_optimas = calcular_rutas_mantenimiento(sucursales)
     
-    # Mapa de rutas
     st.markdown("### Mapa de Rutas de Mantenimiento")
     
     try:
@@ -483,13 +416,11 @@ def pagina_optimizacion_logistica():
     
     st.divider()
     
-    # Tabla de Rutas
     st.markdown("### Detalle del Plan de Mantenimiento")
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # Tabla sin columnas de tipo
         st.dataframe(
             rutas_optimas[['Sucursal_Origen', 'Sucursal_Destino', 
                           'Distancia_km', 'Tiempo_Estimado_min']],
@@ -497,7 +428,6 @@ def pagina_optimizacion_logistica():
             hide_index=True
         )
         
-        # Gráfico de transacciones por tipo debajo de la tabla
         st.markdown("### Análisis de Demanda por Tipo de Transacción")
         
         datos_consolidados = obtener_datos_consolidados()
@@ -524,18 +454,13 @@ def pagina_optimizacion_logistica():
         st.metric("Distancia Promedio", f"{distancia_promedio:.2f} km")
         
         st.markdown("---")
-        
-        
-
 
 # PÁGINA 4: MARKETING DIRIGIDO
 
 def pagina_marketing_dirigido():
     
-    # Cargar datos
     datos_consolidados = obtener_datos_consolidados()
     
-    # SECCIÓN 1: Resumen de Productos por Sucursal
     crear_seccion_encabezado(titulo="Distribución de Productos por Sucursal")
     
     resumen_productos = datos_consolidados.groupby(['Nombre', 'Productos Financieros Adquiridos']).agg({
@@ -558,8 +483,7 @@ def pagina_marketing_dirigido():
         st.metric("Productos Activos", productos_unicos)
     
     st.divider()
-    
-    # SECCIÓN 2: Mapa de Calor de Ventas
+
     crear_seccion_encabezado(
         titulo="Mapa de Calor: Productos por Ubicación",
         descripcion="Visualización del volumen de ventas de cada producto en cada sucursal específica"
@@ -573,7 +497,6 @@ def pagina_marketing_dirigido():
     
     st.divider()
     
-    # SECCIÓN 3: Análisis por Tipo de Sucursal
     crear_seccion_encabezado(
         titulo="Análisis por Tipo de Sucursal",
         descripcion="Comparación del desempeño de productos en Sucursales Principales vs Secundarias"
@@ -588,7 +511,6 @@ def pagina_marketing_dirigido():
     
     st.divider()
     
-    # SECCIÓN 4: Comparativa de Clientes
     crear_seccion_encabezado(
         titulo="Distribución de Clientes por Tipo de Sucursal"
     )
@@ -606,7 +528,6 @@ def pagina_marketing_dirigido():
         if not analisis_tipo.empty:
             st.markdown("**Métricas por Tipo**")
             
-            # Calcular métricas agregadas
             for tipo in analisis_tipo['Tipo de Sucursal'].unique():
                 datos_tipo = analisis_tipo[analisis_tipo['Tipo de Sucursal'] == tipo]
                 
@@ -625,8 +546,6 @@ def pagina_marketing_dirigido():
     
     st.divider()
     
-    
-    # SECCIÓN 6: Análisis Detallado por Producto
     crear_seccion_encabezado(
         titulo="Análisis Detallado por Producto",
         descripcion="Selecciona un producto para ver su desempeño detallado por ubicación"
@@ -677,7 +596,6 @@ def pagina_marketing_dirigido():
         fig_producto = aplicar_tema(fig_producto)
         st.plotly_chart(fig_producto, use_container_width=True)
         
-        # Métricas del producto seleccionado
         col1, col2, col3 = st.columns(3)
         
         with col1:
@@ -705,9 +623,7 @@ def pagina_marketing_dirigido():
 
 def pagina_prediccion_demanda():
     
-    # Generar datos y entrenar modelos
     with st.spinner("Generando datos históricos y entrenando modelos predictivos..."):
-        # Modelo por productos
         df_historico_productos = generar_datos_historicos_productos()
         modelo_prod, scaler_prod, le_producto, le_sucursal, r2_prod, mae_prod = entrenar_modelo_productos(df_historico_productos)
         predicciones_productos = predecir_demanda_productos(
@@ -715,7 +631,6 @@ def pagina_prediccion_demanda():
             df_historico_productos, meses_futuros=6
         )
     
-    # SECCIÓN 1: MÉTRICAS DEL MODELO
     crear_seccion_encabezado(titulo="Desempeño del Modelo Predictivo")
     
     col1, col2, col3, col4 = st.columns(4)
@@ -735,7 +650,6 @@ def pagina_prediccion_demanda():
         )
 
     with col3:
-        # Calcular ventas totales promedio de los últimos 3 meses históricos
         ventas_actuales = df_historico_productos.groupby('Fecha')['Volumen_Ventas'].sum().tail(3).mean()
         st.metric(
             "Ventas Promedio Actual",
@@ -744,7 +658,6 @@ def pagina_prediccion_demanda():
         )
 
     with col4:
-        # CORRECCIÓN: Agrupar por fecha primero, luego promediar (igual que ventas_actuales)
         ventas_proyectadas_agregadas = predicciones_productos[
             predicciones_productos['Mes_Futuro'] <= 3
         ].groupby('Fecha')['Ventas_Proyectada'].sum()
@@ -760,7 +673,6 @@ def pagina_prediccion_demanda():
     
     st.divider()
     
-    # SECCIÓN 2: DEMANDA POR PRODUCTO Y ÁREA
     crear_seccion_encabezado(
         titulo="Demanda Proyectada por Producto y Área Geográfica",
     )
@@ -788,7 +700,6 @@ def pagina_prediccion_demanda():
     
     st.divider()
     
-    # SECCIÓN 3: EVOLUCIÓN TEMPORAL
     crear_seccion_encabezado(
         titulo="Evolución Temporal de la Demanda",
         descripcion="Proyección de ventas futuras por producto en cada sucursal"
@@ -814,7 +725,6 @@ def pagina_prediccion_demanda():
     
     st.divider()
     
-    # SECCIÓN 4: DISTRIBUCIÓN DE DEMANDA
     crear_seccion_encabezado(
         titulo="Distribución de Demanda por Área"
     )
@@ -824,7 +734,6 @@ def pagina_prediccion_demanda():
     
     st.divider()
     
-    # SECCIÓN 5: MATRIZ DE OPORTUNIDADES
     crear_seccion_encabezado(
         titulo="Matriz de Oportunidades de Crecimiento"
     )
@@ -838,19 +747,15 @@ def pagina_prediccion_demanda():
 
 def pagina_analisis_riesgos():
     
-    # Cargar datos
     datos_consolidados = obtener_datos_consolidados()
     sucursales = cargar_sucursales()
     clientes = cargar_clientes()
     productos = cargar_productos()
-    
-    # Calcular riesgos y oportunidades
     riesgos_df = identificar_riesgos_geoespaciales(sucursales, datos_consolidados, productos)
     ubicaciones_optimas = identificar_ubicaciones_optimas_sucursales(
         clientes, sucursales, datos_consolidados, n_clusters=3
     )
     
-    # ===== SECCIÓN 1: RESUMEN DE RIESGOS =====
     crear_seccion_encabezado(
         titulo="Análisis de Riesgos Geoespaciales",
         descripcion="Evaluación de vulnerabilidades en la red de sucursales bancarias"
@@ -878,7 +783,6 @@ def pagina_analisis_riesgos():
     
     st.divider()
     
-    # ===== SECCIÓN 2: MAPA DE RIESGOS =====
     crear_seccion_encabezado(
         titulo="Distribución Geoespacial de Riesgos"
     )
@@ -891,7 +795,6 @@ def pagina_analisis_riesgos():
     
     st.divider()
     
-    # ===== SECCIÓN 3: GRÁFICO DE SCORE =====
     crear_seccion_encabezado(
         titulo="Indicador de Riesgo por Sucursal"
     )
@@ -904,12 +807,10 @@ def pagina_analisis_riesgos():
     
     st.divider()
     
-    # ===== SECCIÓN 6: TABLA DE RIESGOS =====
     crear_seccion_encabezado(
         titulo="Detalle de Sucursales por Nivel de Riesgo"
     )
     
-    # Tabs por nivel de riesgo
     tabs = st.tabs(["🔴 Muy Alto", "🟠 Alto", "🟡 Medio", "🟢 Bajo"])
     niveles = ["🔴 Muy Alto", "🟠 Alto", "🟡 Medio", "🟢 Bajo"]
     
@@ -935,7 +836,6 @@ def pagina_analisis_riesgos():
                     hide_index=True
                 )
                 
-                # Recomendaciones por nivel
                 if nivel == "🔴 Muy Alto":
                     st.warning(
                         """**Acciones Inmediatas:**

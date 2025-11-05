@@ -1,16 +1,15 @@
 import folium
-from folium import plugins
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import numpy as np
-from math import radians, cos, sin, asin, sqrt
 
 from modulos.geoespacial import (
         calcular_distancia_a_sucursal_mas_cercana,
         calcular_distancia_a_cajero_mas_cercano
     )
 
+from modulos.carga_datos import cargar_productos, cargar_sucursales
 
 # CONFIGURACIÓN BASE DE PLOTLY
 
@@ -28,9 +27,7 @@ COLORES = [
 
 
 def aplicar_tema(fig):
-    """
-    Aplica el tema visual a cualquier gráfico Plotly.
-    """
+
     fig.update_layout(
         font=dict(
             family="Arial, sans-serif",
@@ -96,7 +93,6 @@ def crear_mapa_sucursales_cajeros(sucursales_df, cajeros_df, clientes_df=None):
     centro_lat, centro_lon = calcular_centroide(sucursales_df)
     mapa = crear_mapa_base(centro_lat, centro_lon, zoom=7)
     
-    # Agregar sucursales
     for idx, row in sucursales_df.iterrows():
         folium.Marker(
             location=[row['Latitud'], row['Longitud']],
@@ -110,7 +106,6 @@ def crear_mapa_sucursales_cajeros(sucursales_df, cajeros_df, clientes_df=None):
             icon=folium.Icon(color='blue', icon='info-sign', prefix='glyphicon')
         ).add_to(mapa)
     
-    # Agregar cajeros
     for idx, row in cajeros_df.iterrows():
         folium.CircleMarker(
             location=[row['Latitud'], row['Longitud']],
@@ -128,7 +123,6 @@ def crear_mapa_sucursales_cajeros(sucursales_df, cajeros_df, clientes_df=None):
             weight=2
         ).add_to(mapa)
     
-    # Opcionalmente, agregar clientes
     if clientes_df is not None and len(clientes_df) > 0:
         for idx, row in clientes_df.iterrows():
             folium.CircleMarker(
@@ -158,7 +152,6 @@ def crear_mapa_cobertura_clientes(clientes_df, sucursales_df, cajeros_df,
     clientes = calcular_distancia_a_cajero_mas_cercano(clientes, cajeros_df)
     
     def determinar_color_cobertura(row):
-        """Determina el color basado en la cobertura del cliente."""
         distancia_sucursal = row['Distancia_a_Sucursal_km'] <= umbral_sucursal
         distancia_cajero = row['Distancia_a_Cajero_km'] <= umbral_cajero
         
@@ -174,7 +167,6 @@ def crear_mapa_cobertura_clientes(clientes_df, sucursales_df, cajeros_df,
     centro_lat, centro_lon = calcular_centroide(clientes)
     mapa = crear_mapa_base(centro_lat, centro_lon, zoom=7)
     
-    # Agregar clientes con colores según cobertura
     for idx, row in clientes.iterrows():
         color = row['Color_Cobertura']
         folium.CircleMarker(
@@ -195,7 +187,6 @@ def crear_mapa_cobertura_clientes(clientes_df, sucursales_df, cajeros_df,
             weight=2
         ).add_to(mapa)
     
-    # Agregar sucursales y cajeros como referencia
     for idx, row in sucursales_df.iterrows():
         folium.Marker(
             location=[row['Latitud'], row['Longitud']],
@@ -230,8 +221,6 @@ def crear_mapa_cobertura_clientes(clientes_df, sucursales_df, cajeros_df,
     
     return mapa
 
-
-# GRÁFICOS CON PLOTLY CON ANIMACIONES
 
 def crear_grafico_barras(datos_df, x_col, y_col, titulo="", 
                         color_col=None, mostrar_valores=True, animar=True):
@@ -550,8 +539,6 @@ def crear_grafico_matriz_distancias(matriz_distancias, etiquetas=None):
     )
 
 
-# FUNCIONES PARA ANÁLISIS DE COBERTURA
-
 def crear_mapa_cobertura_con_radios(datos_ubicaciones, distancia_km=10.0, zoom_level=7):
  
     if len(datos_ubicaciones) == 0:
@@ -562,7 +549,7 @@ def crear_mapa_cobertura_con_radios(datos_ubicaciones, distancia_km=10.0, zoom_l
     
     mapa = folium.Map(
         location=[centro_lat, centro_lon],
-        zoom_start=zoom_level,  # ← USAR EL PARÁMETRO
+        zoom_start=zoom_level, 
         tiles="OpenStreetMap",
         prefer_canvas=True
     )
@@ -572,7 +559,6 @@ def crear_mapa_cobertura_con_radios(datos_ubicaciones, distancia_km=10.0, zoom_l
     for idx, row in datos_ubicaciones.iterrows():
         color = colores[idx % len(colores)]
         
-        # Circulo de cobertura
         folium.Circle(
             location=[row['Latitud'], row['Longitud']],
             radius=distancia_km * 1000,
@@ -586,7 +572,6 @@ def crear_mapa_cobertura_con_radios(datos_ubicaciones, distancia_km=10.0, zoom_l
             dashArray='5, 5'
         ).add_to(mapa)
         
-        # Marcador central
         folium.CircleMarker(
             location=[row['Latitud'], row['Longitud']],
             radius=8,
@@ -599,7 +584,6 @@ def crear_mapa_cobertura_con_radios(datos_ubicaciones, distancia_km=10.0, zoom_l
             weight=3
         ).add_to(mapa)
         
-        # Etiqueta
         folium.Marker(
             location=[row['Latitud'], row['Longitud']],
             icon=folium.DivIcon(html=f"""
@@ -617,7 +601,6 @@ def crear_mapa_cobertura_con_radios(datos_ubicaciones, distancia_km=10.0, zoom_l
 
 def crear_grafico_concentracion_clientes(datos_consolidados):
 
-    # Agrupar por ubicación (sucursal) y sumar clientes
     concentracion = datos_consolidados.groupby('Nombre').agg({
         'Numero_Clientes_Producto': 'sum'
     }).reset_index().sort_values('Numero_Clientes_Producto', ascending=False)
@@ -754,7 +737,6 @@ def crear_grafico_transacciones_cajeros_por_tipo(datos_consolidados):
 
 def crear_grafico_comparativa_cobertura_clientes(datos_consolidados, distancia_km=10.0):
 
-    # Agrupar datos por sucursal
     comparativa = datos_consolidados.groupby('Nombre').agg({
         'Numero_Clientes_Producto': 'sum',
         'Volumen_Transacciones_Sucursal': 'first',
@@ -763,7 +745,6 @@ def crear_grafico_comparativa_cobertura_clientes(datos_consolidados, distancia_k
     
     comparativa.columns = ['Sucursal', 'Clientes', 'Transacciones', 'Empleados']
     
-    # Calcular área de cobertura (simplificado como círculo)
     area_cobertura = (3.14159 * distancia_km ** 2)
     comparativa['Densidad_Clientes'] = comparativa['Clientes'] / area_cobertura
     
@@ -793,7 +774,6 @@ def crear_grafico_comparativa_cobertura_clientes(datos_consolidados, distancia_k
 
 def crear_mapa_segmentacion_geografica(datos_consolidados):
     
-    # Agrupar datos por sucursal para obtener info consolidada
     sucursales_data = datos_consolidados.groupby(['Nombre', 'Latitud', 'Longitud']).agg({
         'Numero_Clientes_Producto': 'sum',
         'Volumen_Transacciones_Sucursal': 'first',
@@ -801,7 +781,6 @@ def crear_mapa_segmentacion_geografica(datos_consolidados):
         'Tipo de Sucursal': 'first'
     }).reset_index()
     
-    # Calcular métrica de eficiencia
     sucursales_data['Clientes_por_Empleado'] = (
         sucursales_data['Numero_Clientes_Producto'] / 
         sucursales_data['Número de Empleados']
@@ -812,7 +791,6 @@ def crear_mapa_segmentacion_geografica(datos_consolidados):
         sucursales_data['Numero_Clientes_Producto']
     ).round(2)
     
-    # Centro del mapa
     centro_lat = sucursales_data['Latitud'].mean()
     centro_lon = sucursales_data['Longitud'].mean()
     
@@ -823,7 +801,6 @@ def crear_mapa_segmentacion_geografica(datos_consolidados):
         prefer_canvas=True
     )
     
-    # Normalizar valores para colores y tamaños
     min_clientes = sucursales_data['Numero_Clientes_Producto'].min()
     max_clientes = sucursales_data['Numero_Clientes_Producto'].max()
     
@@ -834,17 +811,16 @@ def crear_mapa_segmentacion_geografica(datos_consolidados):
         """Escala de colores: Rojo (bajo) -> Amarillo -> Verde (alto)"""
         proporcion = (transacciones - min_transacciones) / (max_transacciones - min_transacciones)
         if proporcion < 0.33:
-            return '#e74c3c'  # Rojo - bajo
+            return '#e74c3c' 
         elif proporcion < 0.66:
-            return '#f39c12'  # Amarillo - medio
+            return '#f39c12' 
         else:
-            return '#27ae60'  # Verde - alto
+            return '#27ae60' 
     
     def obtener_tamaño(clientes):
         proporcion = (clientes - min_clientes) / (max_clientes - min_clientes)
         return 35 + (proporcion * 40)
     
-    # Agregar marcadores para cada sucursal
     for idx, row in sucursales_data.iterrows():
         color = obtener_color(row['Volumen_Transacciones_Sucursal'])
         tamaño = obtener_tamaño(row['Numero_Clientes_Producto'])
@@ -894,7 +870,6 @@ def crear_mapa_segmentacion_geografica(datos_consolidados):
             weight=3
         ).add_to(mapa)
         
-        # Etiqueta con nombre
         folium.Marker(
             location=[row['Latitud'], row['Longitud']],
             icon=folium.DivIcon(html=f"""
@@ -912,7 +887,6 @@ def crear_mapa_segmentacion_geografica(datos_consolidados):
 
 def crear_mapa_rutas_mantenimiento(sucursales_df, rutas_df):
  
-    # Centro del mapa
     centro_lat = sucursales_df['Latitud'].mean()
     centro_lon = sucursales_df['Longitud'].mean()
     
@@ -923,16 +897,13 @@ def crear_mapa_rutas_mantenimiento(sucursales_df, rutas_df):
         prefer_canvas=True
     )
     
-    # Colores
     color_principal = '#2c5aa0'
     color_secundaria = '#27ae60'
     color_linea = '#f39c12'
     
-    # Agregar Sucursales Principales (marcadores grandes)
     principales = sucursales_df[sucursales_df['Tipo de Sucursal'] == 'Sucursal Principal']
     
     for idx, row in principales.iterrows():
-        # Calcular cuántas sucursales atiende
         rutas_desde = rutas_df[rutas_df['Sucursal_Origen'] == row['Nombre']]
         num_atendidas = len(rutas_desde)
         distancia_total = rutas_desde['Distancia_km'].sum()
@@ -961,7 +932,6 @@ def crear_mapa_rutas_mantenimiento(sucursales_df, rutas_df):
             )
         ).add_to(mapa)
         
-        # Círculo grande alrededor
         folium.Circle(
             location=[row['Latitud'], row['Longitud']],
             radius=2000,
@@ -973,11 +943,9 @@ def crear_mapa_rutas_mantenimiento(sucursales_df, rutas_df):
             weight=2
         ).add_to(mapa)
     
-    # Agregar Sucursales Secundarias (marcadores pequeños)
     secundarias = sucursales_df[sucursales_df['Tipo de Sucursal'] == 'Sucursal Secundaria']
     
     for idx, row in secundarias.iterrows():
-        # Encontrar desde qué principal es atendida
         ruta_info = rutas_df[rutas_df['Sucursal_Destino'] == row['Nombre']]
         
         if len(ruta_info) > 0:
@@ -1015,9 +983,7 @@ def crear_mapa_rutas_mantenimiento(sucursales_df, rutas_df):
             weight=3
         ).add_to(mapa)
     
-    # Agregar líneas de rutas
     for idx, ruta in rutas_df.iterrows():
-        # Línea de ruta
         folium.PolyLine(
             locations=[
                 [ruta['Lat_Origen'], ruta['Lon_Origen']],
@@ -1034,7 +1000,6 @@ def crear_mapa_rutas_mantenimiento(sucursales_df, rutas_df):
             tooltip=f"{ruta['Distancia_km']:.2f} km"
         ).add_to(mapa)
         
-        # Flecha direccional (usando un marcador pequeño en el punto medio)
         lat_medio = (ruta['Lat_Origen'] + ruta['Lat_Destino']) / 2
         lon_medio = (ruta['Lon_Origen'] + ruta['Lon_Destino']) / 2
         
@@ -1053,10 +1018,7 @@ def crear_mapa_rutas_mantenimiento(sucursales_df, rutas_df):
     return mapa
 
 def crear_heatmap_productos_sucursales(datos_consolidados):
-    """
-    Crea un mapa de calor mostrando volumen de ventas por producto y sucursal.
-    """
-    # Preparar datos
+
     pivot_data = datos_consolidados.groupby(['Nombre', 'Productos Financieros Adquiridos']).agg({
         'Volumen_Ventas_Producto': 'sum'
     }).reset_index()
@@ -1071,7 +1033,7 @@ def crear_heatmap_productos_sucursales(datos_consolidados):
         z=pivot_table.values,
         x=pivot_table.columns,
         y=pivot_table.index,
-        colorscale='Blues',  # ← PALETA AZUL
+        colorscale='Blues',
         text=np.round(pivot_table.values, 0),
         texttemplate='$%{text:,.0f}',
         textfont={"size": 11},
@@ -1096,23 +1058,15 @@ def crear_heatmap_productos_sucursales(datos_consolidados):
 
 
 def crear_analisis_penetracion_mercado(datos_consolidados):
-    """
-    Analiza la penetración de cada producto por sucursal.
-    Identifica oportunidades de marketing.
-    """
-    # Importar datos originales
-    from modulos.carga_datos import cargar_productos, cargar_sucursales
     
     productos_df = cargar_productos()
     sucursales_df = cargar_sucursales()
     
-    # Preparar datos desde productos.csv
     pivot_data = productos_df.groupby(['Sucursal Donde Se Ofrece', 'Tipo de Producto']).agg({
         'Número de Clientes': 'sum',
         'Volumen de Ventas': 'sum'
     }).reset_index()
     
-    # Expandir para todas las sucursales
     expanded_data = []
     for _, row in pivot_data.iterrows():
         tipo_sucursal = row['Sucursal Donde Se Ofrece']
@@ -1128,7 +1082,6 @@ def crear_analisis_penetracion_mercado(datos_consolidados):
     
     metricas = pd.DataFrame(expanded_data)
     
-    # Calcular penetración relativa (comparado con el mejor)
     for producto in metricas['Productos Financieros Adquiridos'].unique():
         mask = metricas['Productos Financieros Adquiridos'] == producto
         max_clientes = metricas.loc[mask, 'Numero_Clientes_Producto'].max()
@@ -1139,7 +1092,6 @@ def crear_analisis_penetracion_mercado(datos_consolidados):
         else:
             metricas.loc[mask, 'Penetracion_Relativa'] = 0
     
-    # Identificar oportunidades (penetración < 70%)
     metricas['Oportunidad_Marketing'] = metricas['Penetracion_Relativa'] < 70
     
     fig = px.bar(
@@ -1166,7 +1118,6 @@ def crear_analisis_penetracion_mercado(datos_consolidados):
         hovertemplate='<b>%{y}</b><br>Penetración: %{x:.1f}%<extra></extra>'
     )
     
-    # Agregar línea de referencia en 70%
     fig.add_vline(
         x=70,
         line_dash="dash",
@@ -1191,16 +1142,12 @@ def crear_analisis_penetracion_mercado(datos_consolidados):
 
 
 def crear_matriz_oportunidades_marketing(metricas_df):
-    """
-    Crea una matriz de oportunidades identificando gaps de marketing.
-    """
-    # Filtrar solo oportunidades
+
     oportunidades = metricas_df[metricas_df['Oportunidad_Marketing']].copy()
     oportunidades = oportunidades.sort_values(
         ['Productos Financieros Adquiridos', 'Penetracion_Relativa']
     )
     
-    # Calcular el "gap" (diferencia con el 100%)
     oportunidades['Gap_Porcentual'] = 100 - oportunidades['Penetracion_Relativa']
     oportunidades['Clientes_Potenciales'] = (
         oportunidades['Numero_Clientes_Producto'] / 
@@ -1213,7 +1160,6 @@ def crear_matriz_oportunidades_marketing(metricas_df):
     
     fig = go.Figure()
     
-    # Clientes actuales
     fig.add_trace(go.Bar(
         y=oportunidades['Nombre'] + ' - ' + oportunidades['Productos Financieros Adquiridos'],
         x=oportunidades['Numero_Clientes_Producto'],
@@ -1225,7 +1171,6 @@ def crear_matriz_oportunidades_marketing(metricas_df):
         hovertemplate='<b>%{y}</b><br>Clientes: %{x}<extra></extra>'
     ))
     
-    # Gap de oportunidad
     fig.add_trace(go.Bar(
         y=oportunidades['Nombre'] + ' - ' + oportunidades['Productos Financieros Adquiridos'],
         x=oportunidades['Gap_Clientes'],
@@ -1259,13 +1204,9 @@ def crear_matriz_oportunidades_marketing(metricas_df):
 
 
 def crear_tabla_recomendaciones_marketing(oportunidades_df):
-    """
-    Genera recomendaciones específicas de marketing por sucursal y producto.
-    """
-    # Priorizar por gap de clientes
+
     top_oportunidades = oportunidades_df.nlargest(10, 'Gap_Clientes').copy()
     
-    # Crear texto de recomendación
     def generar_recomendacion(row):
         return f"Campaña enfocada en {row['Productos Financieros Adquiridos']} con potencial de {int(row['Gap_Clientes'])} clientes adicionales"
     
@@ -1273,7 +1214,6 @@ def crear_tabla_recomendaciones_marketing(oportunidades_df):
         generar_recomendacion, axis=1
     )
     
-    # Prioridad basada en volumen potencial
     top_oportunidades['Prioridad'] = pd.cut(
         top_oportunidades['Gap_Clientes'],
         bins=[0, 50, 100, float('inf')],
@@ -1291,16 +1231,12 @@ def crear_tabla_recomendaciones_marketing(oportunidades_df):
     ]]
 
 def crear_analisis_productos_por_tipo_sucursal(datos_consolidados):
-    """
-    Analiza el desempeño de productos por tipo de sucursal (Principal vs Secundaria).
-    """
-    # Agrupar por tipo de sucursal y producto
+ 
     analisis = datos_consolidados.groupby(['Tipo de Sucursal', 'Productos Financieros Adquiridos']).agg({
         'Numero_Clientes_Producto': 'sum',
         'Volumen_Ventas_Producto': 'sum'
     }).reset_index()
     
-    # Crear gráfico de barras agrupadas
     fig = go.Figure()
     
     tipos_sucursal = analisis['Tipo de Sucursal'].unique()
@@ -1346,10 +1282,7 @@ def crear_analisis_productos_por_tipo_sucursal(datos_consolidados):
 
 
 def crear_comparativa_clientes_por_tipo_sucursal(datos_consolidados):
-    """
-    Compara la cantidad de clientes por producto según el tipo de sucursal.
-    """
-    # Agrupar por tipo de sucursal y producto
+
     analisis = datos_consolidados.groupby(['Tipo de Sucursal', 'Productos Financieros Adquiridos']).agg({
         'Numero_Clientes_Producto': 'sum'
     }).reset_index()
@@ -1390,10 +1323,7 @@ def crear_comparativa_clientes_por_tipo_sucursal(datos_consolidados):
     return fig
 
 def crear_mapa_riesgos_geoespaciales(riesgos_df, sucursales_df):
-    """
-    Mapa interactivo mostrando nivel de riesgo por sucursal
-    """
-    # Obtener centroide
+
     centro_lat = sucursales_df['Latitud'].mean()
     centro_lon = sucursales_df['Longitud'].mean()
     
@@ -1404,7 +1334,6 @@ def crear_mapa_riesgos_geoespaciales(riesgos_df, sucursales_df):
         prefer_canvas=True
     )
     
-    # Colores por riesgo
     color_riesgo = {
         '🔴 Muy Alto': '#e74c3c',
         '🟠 Alto': '#f39c12',
@@ -1469,12 +1398,9 @@ def crear_mapa_riesgos_geoespaciales(riesgos_df, sucursales_df):
 
 
 def crear_grafico_riesgo_score(riesgos_df):
-    """
-    Gráfico de barras con score de riesgo por sucursal
-    """
+
     fig = go.Figure()
     
-    # Ordenar por score de riesgo
     riesgos_sorted = riesgos_df.sort_values('Riesgo_Score', ascending=True)
     
     colores = [
@@ -1511,7 +1437,6 @@ def crear_grafico_riesgo_score(riesgos_df):
         xaxis_range=[0, 105]
     )
     
-    # Líneas de umbral
     fig.add_vline(x=80, line_dash="dash", line_color="red", line_width=2,
                   annotation_text="Muy Alto", annotation_position="top right")
     fig.add_vline(x=50, line_dash="dash", line_color="orange", line_width=2,
@@ -1523,9 +1448,7 @@ def crear_grafico_riesgo_score(riesgos_df):
 
 
 def crear_grafico_factores_riesgo(riesgos_df):
-    """
-    Análisis de factores de riesgo
-    """
+
     factores = {
         'Fuera de Territorio': riesgos_df['Fuera_Territorio'].sum(),
         'Dependencia de Producto': (riesgos_df['Productos_Oferecidos'] == 1).sum(),
@@ -1561,10 +1484,7 @@ def crear_grafico_factores_riesgo(riesgos_df):
 
 
 def crear_mapa_oportunidades_cobertura(oportunidades_df, sucursales_df):
-    """
-    Mapa mostrando zonas con alta demanda pero cobertura insuficiente
-    """
-    # Centro del mapa
+
     if len(sucursales_df) > 0:
         centro_lat = sucursales_df['Latitud'].mean()
         centro_lon = sucursales_df['Longitud'].mean()
@@ -1578,7 +1498,6 @@ def crear_mapa_oportunidades_cobertura(oportunidades_df, sucursales_df):
         prefer_canvas=True
     )
     
-    # Agregar sucursales existentes
     for idx, suc in sucursales_df.iterrows():
         folium.Marker(
             location=[suc['Latitud'], suc['Longitud']],
@@ -1588,7 +1507,6 @@ def crear_mapa_oportunidades_cobertura(oportunidades_df, sucursales_df):
             opacity=0.6
         ).add_to(mapa)
     
-    # Agregar oportunidades (clientes de alto valor mal cubiertos)
     if len(oportunidades_df) > 0:
         for idx, oport in oportunidades_df.iterrows():
             tamaño_saldo = 5 + (oport['Saldo'] / oportunidades_df['Saldo'].max() * 15)
@@ -1612,7 +1530,6 @@ def crear_mapa_oportunidades_cobertura(oportunidades_df, sucursales_df):
                 weight=2
             ).add_to(mapa)
     
-    # Agregar círculos de cobertura (15 km)
     for idx, suc in sucursales_df.iterrows():
         folium.Circle(
             location=[suc['Latitud'], suc['Longitud']],
@@ -1630,18 +1547,14 @@ def crear_mapa_oportunidades_cobertura(oportunidades_df, sucursales_df):
 
 
 def crear_matriz_factores_riesgo(riesgos_df):
-    """
-    Heatmap mostrando factores de riesgo por sucursal
-    """
-    # Preparar datos para heatmap
+
     factores_cols = [
         'Fuera_Territorio', 'Aislamiento', 'Concentracion_Alta', 'Baja_Actividad'
     ]
     
     datos = riesgos_df[['Sucursal'] + factores_cols].copy()
-    datos[factores_cols] = datos[factores_cols].astype(int) * 100  # Convertir a valores 0-100
+    datos[factores_cols] = datos[factores_cols].astype(int) * 100 
     
-    # Crear matriz
     matriz = datos[factores_cols].values
     
     fig = go.Figure(data=go.Heatmap(
@@ -1665,9 +1578,7 @@ def crear_matriz_factores_riesgo(riesgos_df):
     return fig
 
 def crear_mapa_oportunidades_sucursales(ubicaciones_optimas_df, sucursales_df, clientes_df):
-    """
-    Mapa mostrando ubicaciones óptimas para nuevas sucursales
-    """
+
     clientes = clientes_df.copy()
     
     # Centro del mapa
@@ -1681,7 +1592,6 @@ def crear_mapa_oportunidades_sucursales(ubicaciones_optimas_df, sucursales_df, c
         prefer_canvas=True
     )
     
-    # 1. Agregar sucursales existentes
     for idx, suc in sucursales_df.iterrows():
         folium.Marker(
             location=[suc['Latitud'], suc['Longitud']],
@@ -1691,7 +1601,6 @@ def crear_mapa_oportunidades_sucursales(ubicaciones_optimas_df, sucursales_df, c
             opacity=0.8
         ).add_to(mapa)
         
-        # Círculo de cobertura (15 km)
         folium.Circle(
             location=[suc['Latitud'], suc['Longitud']],
             radius=15000,  # 15 km en metros
@@ -1703,7 +1612,6 @@ def crear_mapa_oportunidades_sucursales(ubicaciones_optimas_df, sucursales_df, c
             dashArray='5, 5'
         ).add_to(mapa)
     
-    # 2. Agregar ubicaciones óptimas
     if len(ubicaciones_optimas_df) > 0:
         for idx, oport in ubicaciones_optimas_df.iterrows():
             tamaño = 20 if oport['Potencial'] == 'Alto' else 15

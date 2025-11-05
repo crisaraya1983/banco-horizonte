@@ -97,12 +97,6 @@ def crear_seccion_encabezado(titulo: str, descripcion: str = "",
 
 
 def crear_linea_separadora(estilo: str = "subtle"):
-    """
-    Crea líneas separadoras con diferentes estilos.
-    
-    Parámetros:
-        estilo: 'subtle' para línea fina, 'prominent' para más visible
-    """
     if estilo == "subtle":
         st.markdown(
             '<div style="height: 1px; background: linear-gradient(to right, transparent, #e2e8f0, transparent); margin: 20px 0;"></div>',
@@ -184,12 +178,10 @@ def crear_tarjeta_informativa(titulo: str, contenido: str, tipo: str = "info", i
 
 def crear_indicador_estado(valor: float, minimo: float = 0, maximo: float = 100, 
                           etiqueta: str = "Progreso", mostrar_porcentaje: bool = True):
-    # Calcular el porcentaje
     rango = maximo - minimo
     porcentaje = ((valor - minimo) / rango) * 100
     porcentaje = max(0, min(100, porcentaje))
     
-    # Determinar color según el porcentaje
     if porcentaje >= 80:
         color = "var(--success-color)"
     elif porcentaje >= 50:

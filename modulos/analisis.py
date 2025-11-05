@@ -710,36 +710,43 @@ def pagina_prediccion_demanda():
     crear_seccion_encabezado(titulo="Desempeño del Modelo Predictivo")
     
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
         st.metric(
             "R² Score", 
             f"{r2_prod:.3f}",
             help="Indica qué tan bien el modelo explica la variabilidad de los datos. Valores cercanos a 1.0 son mejores."
         )
-    
+
     with col2:
         st.metric(
             "Error Promedio (MAE)", 
             f"${mae_prod:,.0f}",
             help="Error absoluto medio: diferencia promedio entre valores reales y predichos"
         )
-    
+
     with col3:
+        # Calcular ventas totales promedio de los últimos 3 meses históricos
         ventas_actuales = df_historico_productos.groupby('Fecha')['Volumen_Ventas'].sum().tail(3).mean()
         st.metric(
             "Ventas Promedio Actual",
             f"${ventas_actuales:,.0f}",
-            help="Promedio de ventas de los últimos 3 meses"
+            help="Promedio de ventas totales de los últimos 3 meses"
         )
-    
+
     with col4:
-        ventas_proyectada = predicciones_productos[predicciones_productos['Mes_Futuro'] <= 3]['Ventas_Proyectada'].mean()
+        # CORRECCIÓN: Agrupar por fecha primero, luego promediar (igual que ventas_actuales)
+        ventas_proyectadas_agregadas = predicciones_productos[
+            predicciones_productos['Mes_Futuro'] <= 3
+        ].groupby('Fecha')['Ventas_Proyectada'].sum()
+        
+        ventas_proyectada = ventas_proyectadas_agregadas.mean()
         cambio = ((ventas_proyectada - ventas_actuales) / ventas_actuales * 100)
+        
         st.metric(
             "Crecimiento Esperado",
             f"{cambio:+.1f}%",
-            help="Cambio esperado en ventas para los próximos 3 meses"
+            help="Cambio esperado en ventas totales para los próximos 3 meses"
         )
     
     st.divider()

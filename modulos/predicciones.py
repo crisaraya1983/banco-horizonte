@@ -566,7 +566,7 @@ def predecir_demanda_productos(_modelo, _scaler, _le_producto, _le_sucursal,
                 'Fecha': fecha_prediccion.strftime('%Y-%m-%d'),
                 'Sucursal': sucursal,
                 'Producto': producto,
-                'Ventas_Proyectada': max(1, int(ventas_Proyectada)),
+                'Ventas_Proyectada': max(1, int(ventas_Proyectada)),  # ← CAMBIO AQUÍ
                 'Clientes_Proyectados': clientes_proyectados,
                 'Confianza_%': round(confianza * 100, 1),
                 'Mes_Futuro': mes_futuro
@@ -587,7 +587,7 @@ def crear_grafico_demanda_productos_ubicacion(predicciones_df):
     fig = px.bar(
         datos,
         x='Sucursal',
-        y='Ventas_Proyectada',
+        y='Ventas_Proyectada',  # ← CAMBIO AQUÍ
         color='Producto',
         title='Demanda Proyectada por Producto y Sucursal (Próximo Mes)',
         labels={'Ventas_Proyectada': 'Ventas Esperadas ($)'},
@@ -646,7 +646,7 @@ def crear_grafico_evolucion_productos(predicciones_df, sucursal_seleccionada):
     fig.update_layout(
         title=f'Evolución de Demanda por Producto - {sucursal_seleccionada}',
         xaxis_title='Fecha',
-        yaxis_title='Ventas Proyectada ($)',
+        yaxis_title='Ventas Proyectadas ($)', 
         template='plotly_white',
         hovermode='x unified',
         height=400

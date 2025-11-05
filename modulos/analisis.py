@@ -791,7 +791,7 @@ def pagina_prediccion_demanda():
         
         datos_sucursal = predicciones_productos[
             predicciones_productos['Sucursal'] == sucursal_seleccionada
-        ][['Fecha', 'Producto', 'Ventas_Proyectadas', 'Clientes_Proyectados']].sort_values('Fecha')
+        ][['Fecha', 'Producto', 'Ventas_Proyectada', 'Clientes_Proyectados']].sort_values('Fecha')
 
         st.markdown(f"**Proyección Detallada - {sucursal_seleccionada}**")
         st.dataframe(datos_sucursal, use_container_width=True, hide_index=True)

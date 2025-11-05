@@ -57,19 +57,14 @@ from modulos.visualizaciones import (
 )
 
 from modulos.predicciones import (
-        generar_datos_historicos,
-        entrenar_modelo_regresion,
-        generar_predicciones_futuras,
-        analizar_tendencias_por_sucursal,
-        analizar_estacionalidad,
-        calcular_indicadores_demanda,
-        crear_grafico_series_temporal,
-        crear_grafico_predicciones_vs_historico,
-        crear_grafico_comparacion_productos,
-        crear_grafico_tendencias_comparativas,
-        crear_grafico_estacionalidad,
-        crear_heatmap_sucursal_mes
-    )
+    generar_datos_historicos_productos,
+    entrenar_modelo_productos,
+    predecir_demanda_productos,
+    crear_grafico_demanda_productos_ubicacion,
+    crear_grafico_evolucion_productos,
+    crear_grafico_top_productos_area,
+    crear_matriz_oportunidades_productos
+)
 
 # PÁGINA 1: ANÁLISIS DE COBERTURA GEOGRÁFICA
 
@@ -701,137 +696,138 @@ def pagina_marketing_dirigido():
 
 def pagina_prediccion_demanda():
     
-    # Generar datos
-    with st.spinner("Generando datos y entrenando modelo..."):
-        df_historico = generar_datos_historicos()
-        modelo, scaler, r2, mae = entrenar_modelo_regresion(df_historico)
-        predicciones = generar_predicciones_futuras(df_historico, modelo, scaler, meses_futuros=6)
-        tendencias = analizar_tendencias_por_sucursal(df_historico)
-        estacionalidad = analizar_estacionalidad(df_historico)
-        kpis = calcular_indicadores_demanda(df_historico, predicciones)
+    # Generar datos y entrenar modelos
+    with st.spinner("Generando datos históricos y entrenando modelos predictivos..."):
+        # Modelo por productos
+        df_historico_productos = generar_datos_historicos_productos()
+        modelo_prod, scaler_prod, le_producto, le_sucursal, r2_prod, mae_prod = entrenar_modelo_productos(df_historico_productos)
+        predicciones_productos = predecir_demanda_productos(
+            modelo_prod, scaler_prod, le_producto, le_sucursal, 
+            df_historico_productos, meses_futuros=6
+        )
     
-    
-    # SECCIÓN 2: MÉTRICAS DEL MODELO
+    # SECCIÓN 1: MÉTRICAS DEL MODELO
     crear_seccion_encabezado(titulo="Desempeño del Modelo Predictivo")
     
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("R² Score", f"{r2:.4f}", delta="Bondad de ajuste")
+        st.metric(
+            "R² Score", 
+            f"{r2_prod:.3f}",
+            help="Indica qué tan bien el modelo explica la variabilidad de los datos. Valores cercanos a 1.0 son mejores."
+        )
+    
     with col2:
-        st.metric("MAE", f"{mae:.0f}", delta="Error medio")
+        st.metric(
+            "Error Promedio (MAE)", 
+            f"${mae_prod:,.0f}",
+            help="Error absoluto medio: diferencia promedio entre valores reales y predichos"
+        )
+    
     with col3:
-        st.metric("Trans. Actual", f"{kpis['Transacciones_Promedio_Actual']:,.0f}")
+        ventas_actuales = df_historico_productos.groupby('Fecha')['Volumen_Ventas'].sum().tail(3).mean()
+        st.metric(
+            "Ventas Promedio Actual",
+            f"${ventas_actuales:,.0f}",
+            help="Promedio de ventas de los últimos 3 meses"
+        )
+    
     with col4:
-        tasa = kpis['Tasa_Crecimiento_Esperado_%']
-        st.metric("Crecimiento", f"{tasa:+.2f}%")
+        ventas_Proyectada = predicciones_productos[predicciones_productos['Mes_Futuro'] <= 3]['Ventas_Proyectada'].mean()
+        cambio = ((ventas_Proyectada - ventas_actuales) / ventas_actuales * 100)
+        st.metric(
+            "Crecimiento Esperado",
+            f"{cambio:+.1f}%",
+            help="Cambio esperado en ventas para los próximos 3 meses"
+        )
     
     st.divider()
     
-    # SECCIÓN 3: TENDENCIAS
-    crear_seccion_encabezado(titulo="Análisis de Tendencias por Sucursal")
+    # SECCIÓN 2: DEMANDA POR PRODUCTO Y ÁREA
+    crear_seccion_encabezado(
+        titulo="Demanda Proyectada por Producto y Área Geográfica",
+    )
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        fig_tendencias = crear_grafico_tendencias_comparativas(tendencias)
-        st.plotly_chart(fig_tendencias, use_container_width=True)
+        fig_demanda = crear_grafico_demanda_productos_ubicacion(predicciones_productos)
+        st.plotly_chart(fig_demanda, use_container_width=True)
     
     with col2:
-        st.markdown("**Resumen**")
-        for idx, row in tendencias.iterrows():
-            emoji = "📈" if row['Tipo_Tendencia'] == 'Crecimiento' else "📉" if row['Tipo_Tendencia'] == 'Decrecimiento' else "➡️"
-            st.write(f"{emoji} {row['Sucursal']}: {row['Cambio_Transacciones_%']:+.1f}%")
+        st.markdown("**Resumen por Producto**")
+        
+        resumen_producto = predicciones_productos[predicciones_productos['Mes_Futuro'] == 1].groupby('Producto').agg({
+            'Ventas_Proyectada': 'sum',
+            'Clientes_Proyectados': 'sum'
+        }).reset_index().sort_values('Ventas_Proyectada', ascending=False)
+        
+        for idx, row in resumen_producto.iterrows():
+            st.metric(
+                row['Producto'],
+                f"${row['Ventas_Proyectada']:,.0f}",
+                delta=f"{row['Clientes_Proyectados']} clientes"
+            )
     
     st.divider()
     
-    # SECCIÓN 4: SERIES TEMPORALES
-    crear_seccion_encabezado(titulo="Series Temporales y Pronósticos")
+    # SECCIÓN 3: EVOLUCIÓN TEMPORAL
+    crear_seccion_encabezado(
+        titulo="Evolución Temporal de la Demanda",
+        descripcion="Proyección de ventas futuras por producto en cada sucursal"
+    )
     
-    sucursales_disponibles = sorted(df_historico['Sucursal'].unique())
-    sucursal_seleccionada = st.selectbox("Selecciona sucursal", sucursales_disponibles, key="sucursal_pred")
+    sucursales_disponibles = sorted(predicciones_productos['Sucursal'].unique())
+    sucursal_seleccionada = st.selectbox(
+        "Selecciona una sucursal para análisis detallado",
+        sucursales_disponibles,
+        key="sucursal_evolucion"
+    )
     
     if sucursal_seleccionada:
-        tab1, tab2, tab3 = st.tabs(["Series Temporal", "Histórico vs Predicción", "Análisis"])
+        fig_evolucion = crear_grafico_evolucion_productos(predicciones_productos, sucursal_seleccionada)
+        st.plotly_chart(fig_evolucion, use_container_width=True)
         
-        with tab1:
-            fig_series = crear_grafico_series_temporal(df_historico, sucursal_seleccionada)
-            st.plotly_chart(fig_series, use_container_width=True)
-        
-        with tab2:
-            fig_pred = crear_grafico_predicciones_vs_historico(df_historico, predicciones, sucursal_seleccionada)
-            st.plotly_chart(fig_pred, use_container_width=True)
-            
-            datos_suc = df_historico[df_historico['Sucursal'] == sucursal_seleccionada]
-            pred_suc = predicciones[predicciones['Sucursal'] == sucursal_seleccionada]
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Prom. Histórico", f"{datos_suc['Transacciones_Sucursal'].mean():,.0f}")
-            with col2:
-                st.metric("Prom. Predicción", f"{pred_suc['Transacciones_Predichas'].mean():,.0f}")
-            with col3:
-                cambio = ((pred_suc['Transacciones_Predichas'].mean() - datos_suc['Transacciones_Sucursal'].mean()) / datos_suc['Transacciones_Sucursal'].mean() * 100)
-                st.metric("Cambio", f"{cambio:+.1f}%")
-        
-        with tab3:
-            fig_comp = crear_grafico_comparacion_productos(df_historico, sucursal_seleccionada)
-            st.plotly_chart(fig_comp, use_container_width=True)
-    
-    st.divider()
-    
-    # SECCIÓN 5: ESTACIONALIDAD
-    crear_seccion_encabezado(titulo="Patrones de Estacionalidad")
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        fig_estac = crear_grafico_estacionalidad(estacionalidad)
-        st.plotly_chart(fig_estac, use_container_width=True)
-    
-    with col2:
-        st.markdown("**Análisis**")
-        mes_max = estacionalidad.loc[estacionalidad['Transacciones_Sucursal'].idxmax()]
-        mes_min = estacionalidad.loc[estacionalidad['Transacciones_Sucursal'].idxmin()]
-        
-        st.success(f"📈 Pico: {mes_max['Mes_Nombre']}")
-        st.warning(f"📉 Bajo: {mes_min['Mes_Nombre']}")
-        
-        variacion = ((mes_max['Transacciones_Sucursal'] - mes_min['Transacciones_Sucursal']) / mes_min['Transacciones_Sucursal'] * 100)
-        st.info(f"Variación: {variacion:.1f}%")
-    
-    st.divider()
-    
-    # SECCIÓN 6: MAPA DE CALOR
-    crear_seccion_encabezado(titulo="Mapa de Calor: Actividad por Sucursal-Mes")
-    
-    fig_heatmap = crear_heatmap_sucursal_mes(df_historico)
-    st.plotly_chart(fig_heatmap, use_container_width=True)
-    
-    st.divider()
-    
-    # SECCIÓN 7: TABLA DE PREDICCIONES
-    crear_seccion_encabezado(titulo="Tabla de Predicciones Futuras")
-    
-    pred_tabla = predicciones.groupby(['Fecha', 'Sucursal']).agg({
-        'Transacciones_Predichas': 'sum',
-        'Clientes_Proyectados': 'sum',
-        'Confidence': 'first'
-    }).reset_index().sort_values('Fecha')
-    
-    pred_tabla.columns = ['Fecha', 'Sucursal', 'Transacciones', 'Clientes', 'Confianza']
-    pred_tabla['Confianza_%'] = (pred_tabla['Confianza'] * 100).round(1)
-    
-    st.dataframe(pred_tabla[['Fecha', 'Sucursal', 'Transacciones', 'Clientes', 'Confianza_%']], 
-                 use_container_width=True, hide_index=True)
-    
+        datos_sucursal = predicciones_productos[
+            predicciones_productos['Sucursal'] == sucursal_seleccionada
+        ][['Fecha', 'Producto', 'Ventas_Proyectadas', 'Clientes_Proyectados']].sort_values('Fecha')
 
+        st.markdown(f"**Proyección Detallada - {sucursal_seleccionada}**")
+        st.dataframe(datos_sucursal, use_container_width=True, hide_index=True)
+    
+    st.divider()
+    
+    # SECCIÓN 4: DISTRIBUCIÓN DE DEMANDA
+    crear_seccion_encabezado(
+        titulo="Distribución de Demanda por Área",
+        descripcion="Visualización jerárquica de productos con mayor demanda esperada"
+    )
+    
+    fig_sunburst = crear_grafico_top_productos_area(predicciones_productos)
+    st.plotly_chart(fig_sunburst, use_container_width=True)
+    
+    st.info(
+        "💡 **Interpretación:** Las áreas más grandes representan mayor demanda esperada. "
+        "Haz clic en las secciones para explorar en detalle."
+    )
+    
+    st.divider()
+    
+    # SECCIÓN 5: MATRIZ DE OPORTUNIDADES
+    crear_seccion_encabezado(
+        titulo="Matriz de Oportunidades de Crecimiento",
+        descripcion="Identificación de productos y áreas con mayor potencial de crecimiento"
+    )
+    
+    fig_oportunidades, df_oportunidades = crear_matriz_oportunidades_productos(
+        predicciones_productos, df_historico_productos
+    )
+    st.plotly_chart(fig_oportunidades, use_container_width=True)
+    
 # ANÁLISIS DE RIESGOS
 
 def pagina_analisis_riesgos():
-    """
-    Análisis de riesgos geoespaciales.
-    """
     
     crear_seccion_encabezado(titulo="Análisis de Riesgos")
     

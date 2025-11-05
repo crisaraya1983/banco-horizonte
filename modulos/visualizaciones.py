@@ -1388,3 +1388,372 @@ def crear_comparativa_clientes_por_tipo_sucursal(datos_consolidados):
     
     fig = aplicar_tema(fig)
     return fig
+
+def crear_mapa_riesgos_geoespaciales(riesgos_df, sucursales_df):
+    """
+    Mapa interactivo mostrando nivel de riesgo por sucursal
+    """
+    # Obtener centroide
+    centro_lat = sucursales_df['Latitud'].mean()
+    centro_lon = sucursales_df['Longitud'].mean()
+    
+    mapa = folium.Map(
+        location=[centro_lat, centro_lon],
+        zoom_start=6,
+        tiles="OpenStreetMap",
+        prefer_canvas=True
+    )
+    
+    # Colores por riesgo
+    color_riesgo = {
+        '🔴 Muy Alto': '#e74c3c',
+        '🟠 Alto': '#f39c12',
+        '🟡 Medio': '#f1c40f',
+        '🟢 Bajo': '#27ae60'
+    }
+    
+    for idx, row in riesgos_df.iterrows():
+        color = color_riesgo.get(row['Nivel_Riesgo'], '#95a5a6')
+        tamaño = 15 + (row['Riesgo_Score'] / 100 * 25)
+        
+        popup_html = f"""
+        <div style="font-family: Arial; width: 300px;">
+            <h4 style="margin: 5px 0; color: {color};">{row['Sucursal']}</h4>
+            <hr style="margin: 5px 0;">
+            <table style="width: 100%; font-size: 12px; line-height: 1.6;">
+                <tr>
+                    <td><b>Nivel de Riesgo:</b></td>
+                    <td>{row['Nivel_Riesgo']}</td>
+                </tr>
+                <tr>
+                    <td><b>Score:</b></td>
+                    <td>{row['Riesgo_Score']}/100</td>
+                </tr>
+                <tr>
+                    <td><b>Clientes:</b></td>
+                    <td>{row['Clientes_Totales']:,}</td>
+                </tr>
+                <tr>
+                    <td><b>Ventas:</b></td>
+                    <td>${row['Volumen_Ventas_Total']:,}</td>
+                </tr>
+                <tr>
+                    <td><b>Trans/mes:</b></td>
+                    <td>{row['Volumen_Transacciones']:,}</td>
+                </tr>
+                <tr>
+                    <td><b>Emp:</b></td>
+                    <td>{row['Empleados']}</td>
+                </tr>
+                <tr>
+                    <td><b>Trans/Emp:</b></td>
+                    <td>{row['Trans_Por_Empleado']}</td>
+                </tr>
+            </table>
+        </div>
+        """
+        
+        folium.CircleMarker(
+            location=[row['Latitud'], row['Longitud']],
+            radius=tamaño,
+            popup=folium.Popup(popup_html, max_width=350),
+            tooltip=f"{row['Sucursal']} - {row['Nivel_Riesgo']}",
+            color='white',
+            fill=True,
+            fillColor=color,
+            fillOpacity=0.85,
+            weight=3
+        ).add_to(mapa)
+    
+    return mapa
+
+
+def crear_grafico_riesgo_score(riesgos_df):
+    """
+    Gráfico de barras con score de riesgo por sucursal
+    """
+    fig = go.Figure()
+    
+    # Ordenar por score de riesgo
+    riesgos_sorted = riesgos_df.sort_values('Riesgo_Score', ascending=True)
+    
+    colores = [
+        '#e74c3c' if score >= 80 else
+        '#f39c12' if score >= 50 else
+        '#f1c40f' if score >= 30 else
+        '#27ae60'
+        for score in riesgos_sorted['Riesgo_Score']
+    ]
+    
+    fig.add_trace(go.Bar(
+        y=riesgos_sorted['Sucursal'],
+        x=riesgos_sorted['Riesgo_Score'],
+        orientation='h',
+        marker=dict(
+            color=colores,
+            line=dict(color='white', width=2)
+        ),
+        text=riesgos_sorted['Riesgo_Score'],
+        textposition='outside',
+        texttemplate='%{text:.0f}',
+        hovertemplate='<b>%{y}</b><br>Score: %{x:.0f}/100<br>Clientes: %{customdata[0]:,}<br>Ventas: $%{customdata[1]:,}<extra></extra>',
+        customdata=riesgos_sorted[['Clientes_Totales', 'Volumen_Ventas_Total']].values,
+        name='Score de Riesgo'
+    ))
+    
+    fig.update_layout(
+        title='Score de Riesgo por Sucursal (0-100)',
+        xaxis_title='Score de Riesgo',
+        yaxis_title='',
+        template='plotly_white',
+        height=400,
+        showlegend=False,
+        xaxis_range=[0, 105]
+    )
+    
+    # Líneas de umbral
+    fig.add_vline(x=80, line_dash="dash", line_color="red", line_width=2,
+                  annotation_text="Muy Alto", annotation_position="top right")
+    fig.add_vline(x=50, line_dash="dash", line_color="orange", line_width=2,
+                  annotation_text="Alto", annotation_position="top right")
+    fig.add_vline(x=30, line_dash="dash", line_color="#f1c40f", line_width=2,
+                  annotation_text="Medio", annotation_position="top right")
+    
+    return fig
+
+
+def crear_grafico_factores_riesgo(riesgos_df):
+    """
+    Análisis de factores de riesgo
+    """
+    factores = {
+        'Fuera de Territorio': riesgos_df['Fuera_Territorio'].sum(),
+        'Dependencia de Producto': (riesgos_df['Productos_Oferecidos'] == 1).sum(),
+        'Aislamiento Geográfico': riesgos_df['Aislamiento'].sum(),
+        'Concentración Alta': riesgos_df['Concentracion_Alta'].sum(),
+        'Baja Actividad': riesgos_df['Baja_Actividad'].sum()
+    }
+    
+    fig = go.Figure(data=[
+        go.Bar(
+            x=list(factores.keys()),
+            y=list(factores.values()),
+            marker=dict(
+                color=['#e74c3c', '#f39c12', '#f1c40f', '#e67e22', '#c0392b'],
+                line=dict(color='white', width=2)
+            ),
+            text=list(factores.values()),
+            textposition='outside',
+            hovertemplate='<b>%{x}</b><br>Sucursales Afectadas: %{y}<extra></extra>'
+        )
+    ])
+    
+    fig.update_layout(
+        title='Distribución de Factores de Riesgo',
+        yaxis_title='Número de Sucursales Afectadas',
+        xaxis_tickangle=-45,
+        template='plotly_white',
+        height=400,
+        showlegend=False
+    )
+    
+    return fig
+
+
+def crear_mapa_oportunidades_cobertura(oportunidades_df, sucursales_df):
+    """
+    Mapa mostrando zonas con alta demanda pero cobertura insuficiente
+    """
+    # Centro del mapa
+    if len(sucursales_df) > 0:
+        centro_lat = sucursales_df['Latitud'].mean()
+        centro_lon = sucursales_df['Longitud'].mean()
+    else:
+        centro_lat, centro_lon = -10, -84
+    
+    mapa = folium.Map(
+        location=[centro_lat, centro_lon],
+        zoom_start=6,
+        tiles="OpenStreetMap",
+        prefer_canvas=True
+    )
+    
+    # Agregar sucursales existentes
+    for idx, suc in sucursales_df.iterrows():
+        folium.Marker(
+            location=[suc['Latitud'], suc['Longitud']],
+            popup=suc['Nombre'],
+            icon=folium.Icon(color='blue', icon='bank', prefix='fa'),
+            tooltip=suc['Nombre'],
+            opacity=0.6
+        ).add_to(mapa)
+    
+    # Agregar oportunidades (clientes de alto valor mal cubiertos)
+    if len(oportunidades_df) > 0:
+        for idx, oport in oportunidades_df.iterrows():
+            tamaño_saldo = 5 + (oport['Saldo'] / oportunidades_df['Saldo'].max() * 15)
+            
+            popup_html = f"""
+            <b>Oportunidad de Expansión</b><br>
+            Saldo: ${oport['Saldo']:,.0f}<br>
+            Visitas/mes: {oport['Frecuencia_Visitas']}<br>
+            Dist. Sucursal: {oport['Distancia_Sucursal']:.2f} km
+            """
+            
+            folium.CircleMarker(
+                location=[oport['Latitud'], oport['Longitud']],
+                radius=tamaño_saldo,
+                popup=popup_html,
+                tooltip="Oportunidad",
+                color='#e74c3c',
+                fill=True,
+                fillColor='#e74c3c',
+                fillOpacity=0.6,
+                weight=2
+            ).add_to(mapa)
+    
+    # Agregar círculos de cobertura (15 km)
+    for idx, suc in sucursales_df.iterrows():
+        folium.Circle(
+            location=[suc['Latitud'], suc['Longitud']],
+            radius=15000,  # 15 km en metros
+            popup=f"Cobertura: {suc['Nombre']}",
+            color='#27ae60',
+            fill=True,
+            fillColor='#27ae60',
+            fillOpacity=0.1,
+            weight=2,
+            dashArray='5, 5'
+        ).add_to(mapa)
+    
+    return mapa
+
+
+def crear_matriz_factores_riesgo(riesgos_df):
+    """
+    Heatmap mostrando factores de riesgo por sucursal
+    """
+    # Preparar datos para heatmap
+    factores_cols = [
+        'Fuera_Territorio', 'Aislamiento', 'Concentracion_Alta', 'Baja_Actividad'
+    ]
+    
+    datos = riesgos_df[['Sucursal'] + factores_cols].copy()
+    datos[factores_cols] = datos[factores_cols].astype(int) * 100  # Convertir a valores 0-100
+    
+    # Crear matriz
+    matriz = datos[factores_cols].values
+    
+    fig = go.Figure(data=go.Heatmap(
+        z=matriz,
+        x=['Fuera Territorio', 'Aislamiento', 'Concentración', 'Baja Actividad'],
+        y=datos['Sucursal'],
+        colorscale='RdYlGn_r',
+        text=matriz,
+        texttemplate='%{text}%',
+        textfont={"size": 10},
+        hovertemplate='<b>%{y}</b><br>%{x}<br>Riesgo: %{z}%<extra></extra>',
+        colorbar=dict(title="Riesgo %")
+    ))
+    
+    fig.update_layout(
+        title='Matriz de Factores de Riesgo por Sucursal',
+        height=400,
+        template='plotly_white'
+    )
+    
+    return fig
+
+def crear_mapa_oportunidades_sucursales(ubicaciones_optimas_df, sucursales_df, clientes_df):
+    """
+    Mapa mostrando ubicaciones óptimas para nuevas sucursales
+    """
+    clientes = clientes_df.copy()
+    
+    # Centro del mapa
+    centro_lat = sucursales_df['Latitud'].mean()
+    centro_lon = sucursales_df['Longitud'].mean()
+    
+    mapa = folium.Map(
+        location=[centro_lat, centro_lon],
+        zoom_start=6,
+        tiles="OpenStreetMap",
+        prefer_canvas=True
+    )
+    
+    # 1. Agregar sucursales existentes
+    for idx, suc in sucursales_df.iterrows():
+        folium.Marker(
+            location=[suc['Latitud'], suc['Longitud']],
+            popup=f"<b>{suc['Nombre']}</b>",
+            icon=folium.Icon(color='blue', icon='bank', prefix='fa'),
+            tooltip=suc['Nombre'],
+            opacity=0.8
+        ).add_to(mapa)
+        
+        # Círculo de cobertura (15 km)
+        folium.Circle(
+            location=[suc['Latitud'], suc['Longitud']],
+            radius=15000,  # 15 km en metros
+            color='#3498db',
+            fill=True,
+            fillColor='#3498db',
+            fillOpacity=0.08,
+            weight=1,
+            dashArray='5, 5'
+        ).add_to(mapa)
+    
+    # 2. Agregar ubicaciones óptimas
+    if len(ubicaciones_optimas_df) > 0:
+        for idx, oport in ubicaciones_optimas_df.iterrows():
+            tamaño = 20 if oport['Potencial'] == 'Alto' else 15
+            color_oport = '#e74c3c' if oport['Potencial'] == 'Alto' else '#f39c12'
+            
+            popup_html = f"""
+            <div style="font-family: Arial; width: 250px;">
+                <h4 style="margin: 5px 0; color: {color_oport};">
+                    Ubicación Óptima #{oport['Cluster_ID']}
+                </h4>
+                <hr style="margin: 5px 0;">
+                <table style="width: 100%; font-size: 12px;">
+                    <tr>
+                        <td><b>Potencial:</b></td>
+                        <td>{oport['Potencial']}</td>
+                    </tr>
+                    <tr>
+                        <td><b>Clientes Sin Cobertura:</b></td>
+                        <td>{oport['Clientes_Sin_Cobertura']}</td>
+                    </tr>
+                    <tr>
+                        <td><b>Valor Potencial:</b></td>
+                        <td>${oport['Valor_Total']:,}</td>
+                    </tr>
+                    <tr>
+                        <td><b>Saldo Promedio:</b></td>
+                        <td>${oport['Saldo_Promedio']:,}</td>
+                    </tr>
+                    <tr>
+                        <td><b>Producto Principal:</b></td>
+                        <td>{oport['Producto_Principal']}</td>
+                    </tr>
+                    <tr>
+                        <td><b>Dist. a Sucursal:</b></td>
+                        <td>{oport['Distancia_Sucursal_Cercana_km']} km</td>
+                    </tr>
+                </table>
+            </div>
+            """
+            
+            folium.CircleMarker(
+                location=[oport['Latitud'], oport['Longitud']],
+                radius=tamaño,
+                popup=folium.Popup(popup_html, max_width=300),
+                tooltip=f"Oportunidad #{oport['Cluster_ID']}",
+                color='white',
+                fill=True,
+                fillColor=color_oport,
+                fillOpacity=0.9,
+                weight=3
+            ).add_to(mapa)
+    
+    return mapa

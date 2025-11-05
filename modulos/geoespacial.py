@@ -198,3 +198,202 @@ def calcular_rutas_mantenimiento(sucursales_df):
             })
     
     return pd.DataFrame(rutas)
+
+def identificar_riesgos_geoespaciales(sucursales_df, datos_consolidados, productos_df):
+    """
+    Identifica riesgos geoespaciales usando datos consolidados reales
+    """
+    riesgos = []
+    
+    # Definir límites geográficos (Costa Rica: lat -11 a -6, lon -82 a -77)
+    LAT_MIN, LAT_MAX = -11, -6
+    LON_MIN, LON_MAX = -82, -77
+    
+    for idx, sucursal in sucursales_df.iterrows():
+        lat, lon = sucursal['Latitud'], sucursal['Longitud']
+        nombre = sucursal['Nombre']
+        
+        # RIESGO 1: Ubicación fuera del territorio
+        fuera_territorio = not (LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX)
+        
+        # RIESGO 2: Diversificación de productos
+        productos_sucursal = productos_df[
+            productos_df['Sucursal Donde Se Ofrece'] == sucursal['Tipo de Sucursal']
+        ]
+        diversificacion = len(productos_sucursal) if len(productos_sucursal) > 0 else 1
+        
+        # RIESGO 3: Aislamiento geográfico
+        distancias_a_otras = []
+        for idx2, otra in sucursales_df.iterrows():
+            if idx != idx2:
+                dist = distancia_haversine(lat, lon, otra['Latitud'], otra['Longitud'])
+                distancias_a_otras.append(dist)
+        
+        distancia_minima = min(distancias_a_otras) if distancias_a_otras else float('inf')
+        aislamiento = distancia_minima > 25  # > 25 km es riesgo
+        
+        # RIESGO 4: Volumen de clientes y ventas en la sucursal
+        datos_suc = datos_consolidados[datos_consolidados['Nombre'] == nombre]
+        
+        if len(datos_suc) > 0:
+            num_clientes = datos_suc['Numero_Clientes_Producto'].sum()
+            volumen_ventas = datos_suc['Volumen_Ventas_Producto'].sum()
+            volumen_transacciones = datos_suc['Volumen_Transacciones_Sucursal'].iloc[0]
+            empleados = datos_suc['Número de Empleados'].iloc[0]
+        else:
+            num_clientes = 0
+            volumen_ventas = 0
+            volumen_transacciones = 0
+            empleados = 1
+        
+        # RIESGO 5: Baja actividad (volumen de clientes bajo o baja productividad)
+        clientes_promedio = datos_consolidados['Numero_Clientes_Producto'].mean()
+        ventas_promedio = datos_consolidados['Volumen_Ventas_Producto'].mean()
+        
+        baja_actividad_clientes = num_clientes < clientes_promedio * 0.5
+        baja_actividad_ventas = volumen_ventas < ventas_promedio * 0.5
+        baja_actividad = baja_actividad_clientes or baja_actividad_ventas
+        
+        # RIESGO 6: Eficiencia (transacciones por empleado)
+        trans_por_empleado = volumen_transacciones / empleados if empleados > 0 else 0
+        trans_promedio = datos_consolidados['Volumen_Transacciones_Sucursal'].sum() / datos_consolidados['Número de Empleados'].sum()
+        baja_eficiencia = trans_por_empleado < trans_promedio * 0.6
+        
+        # Calcular nivel de riesgo general (escala 0-100)
+        riesgo_score = sum([
+            fuera_territorio * 45,           # Crítico
+            (diversificacion == 1) * 20,     # Dependencia de producto
+            aislamiento * 15,                # Aislamiento
+            baja_actividad_clientes * 25,    # Pocos clientes
+            baja_actividad_ventas * 25,      # Pocas ventas
+            baja_eficiencia * 10             # Baja eficiencia
+        ])
+        
+        riesgo_score = min(100, riesgo_score)  # Máximo 100
+        
+        # Clasificación
+        nivel_riesgo = (
+            "🔴 Muy Alto" if riesgo_score >= 80 else
+            "🟠 Alto" if riesgo_score >= 50 else
+            "🟡 Medio" if riesgo_score >= 30 else
+            "🟢 Bajo"
+        )
+        
+        riesgos.append({
+            'Sucursal': nombre,
+            'Latitud': lat,
+            'Longitud': lon,
+            'Tipo de Sucursal': sucursal['Tipo de Sucursal'],
+            'Fuera_Territorio': fuera_territorio,
+            'Productos_Oferecidos': diversificacion,
+            'Distancia_Sucursal_Mas_Cercana_km': round(distancia_minima, 2),
+            'Aislamiento': aislamiento,
+            'Clientes_Totales': int(num_clientes),
+            'Volumen_Ventas_Total': int(volumen_ventas),
+            'Volumen_Transacciones': int(volumen_transacciones),
+            'Empleados': int(empleados),
+            'Trans_Por_Empleado': round(trans_por_empleado, 2),
+            'Baja_Actividad': baja_actividad,
+            'Baja_Eficiencia': baja_eficiencia,
+            'Riesgo_Score': riesgo_score,
+            'Nivel_Riesgo': nivel_riesgo
+        })
+    
+    return pd.DataFrame(riesgos)
+
+
+def identificar_ubicaciones_optimas_sucursales(clientes_df, sucursales_df, datos_consolidados, n_clusters=3):
+    """
+    Identifica ubicaciones óptimas para nuevas sucursales usando clustering de clientes sin cobertura
+    """
+    from sklearn.cluster import KMeans
+    
+    clientes = clientes_df.copy()
+    clientes = calcular_distancia_a_sucursal_mas_cercana(clientes, sucursales_df)
+    
+    # Filtrar clientes sin cobertura (> 15 km)
+    clientes_sin_cobertura = clientes[clientes['Distancia_a_Sucursal_km'] > 15].copy()
+    
+    if len(clientes_sin_cobertura) < 3:
+        return pd.DataFrame()
+    
+    # Ponderación por valor (saldo * frecuencia)
+    clientes_sin_cobertura['Valor'] = (
+        clientes_sin_cobertura['Saldo Promedio de Cuentas'] * 
+        clientes_sin_cobertura['Frecuencia de Visitas']
+    )
+    
+    # Clustering basado en ubicación, ponderado por valor
+    coords = clientes_sin_cobertura[['Latitud', 'Longitud']].values
+    pesos = clientes_sin_cobertura['Valor'].values / clientes_sin_cobertura['Valor'].sum()
+    
+    kmeans = KMeans(n_clusters=min(n_clusters, len(clientes_sin_cobertura)), 
+                    random_state=42, n_init=10)
+    clientes_sin_cobertura['Cluster'] = kmeans.fit_predict(coords)
+    
+    # Calcular centroide y valor de cada cluster
+    ubicaciones_optimas = []
+    
+    for cluster_id in range(kmeans.n_clusters):
+        datos_cluster = clientes_sin_cobertura[clientes_sin_cobertura['Cluster'] == cluster_id]
+        
+        # Centroide ponderado por valor
+        lat_opt = (datos_cluster['Latitud'] * datos_cluster['Valor']).sum() / datos_cluster['Valor'].sum()
+        lon_opt = (datos_cluster['Longitud'] * datos_cluster['Valor']).sum() / datos_cluster['Valor'].sum()
+        
+        num_clientes = len(datos_cluster)
+        valor_total = datos_cluster['Valor'].sum()
+        saldo_promedio = datos_cluster['Saldo Promedio de Cuentas'].mean()
+        
+        # Encontrar distancia a sucursal más cercana
+        dist_minima = datos_cluster['Distancia_a_Sucursal_km'].min()
+        
+        # Demanda de productos
+        productos_demandados = datos_cluster['Productos Financieros Adquiridos'].value_counts()
+        producto_principal = productos_demandados.index[0] if len(productos_demandados) > 0 else "General"
+        
+        ubicaciones_optimas.append({
+            'Cluster_ID': cluster_id + 1,
+            'Latitud': lat_opt,
+            'Longitud': lon_opt,
+            'Clientes_Sin_Cobertura': num_clientes,
+            'Valor_Total': int(valor_total),
+            'Saldo_Promedio': int(saldo_promedio),
+            'Distancia_Sucursal_Cercana_km': round(dist_minima, 2),
+            'Producto_Principal': producto_principal,
+            'Potencial': 'Alto' if valor_total > datos_consolidados['Volumen_Ventas_Producto'].median() * 5 else 'Medio'
+        })
+    
+    return pd.DataFrame(ubicaciones_optimas)
+
+
+def calcular_cobertura_vs_demanda(clientes_df, sucursales_df, umbral_km=15.0):
+    """
+    Identifica zonas con alta demanda pero cobertura insuficiente
+    """
+    clientes = clientes_df.copy()
+    clientes = calcular_distancia_a_sucursal_mas_cercana(clientes, sucursales_df)
+    
+    # Segmentar clientes por cobertura
+    bien_cubiertos = clientes[clientes['Distancia_a_Sucursal_km'] <= umbral_km]
+    mal_cubiertos = clientes[clientes['Distancia_a_Sucursal_km'] > umbral_km]
+    
+    oportunidades = []
+    
+    # Identificar zonas de alto valor pero mal cubiertas
+    for idx, cliente_mal in mal_cubiertos.iterrows():
+        saldo = cliente_mal['Saldo Promedio de Cuentas']
+        frecuencia = cliente_mal['Frecuencia de Visitas']
+        
+        # Alto valor + baja cobertura = oportunidad
+        if saldo > clientes['Saldo Promedio de Cuentas'].median() and frecuencia > 2:
+            oportunidades.append({
+                'Latitud': cliente_mal['Latitud'],
+                'Longitud': cliente_mal['Longitud'],
+                'Saldo': saldo,
+                'Frecuencia_Visitas': frecuencia,
+                'Distancia_Sucursal': cliente_mal['Distancia_a_Sucursal_km'],
+                'Tipo_Oportunidad': 'Alto Valor - Cobertura Insuficiente'
+            })
+    
+    return pd.DataFrame(oportunidades), len(bien_cubiertos), len(mal_cubiertos)

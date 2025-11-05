@@ -21,7 +21,10 @@ from modulos.geoespacial import (
     calcular_densidad_clientes_por_sucursal,
     calcular_centroide_geográfico,
     distancia_haversine,
-    calcular_rutas_mantenimiento  
+    calcular_rutas_mantenimiento,
+    identificar_riesgos_geoespaciales,
+    calcular_cobertura_vs_demanda,
+    identificar_ubicaciones_optimas_sucursales  
 )
 
 from modulos.componentes import (
@@ -53,7 +56,13 @@ from modulos.visualizaciones import (
     aplicar_tema,
     crear_heatmap_productos_sucursales,
     crear_analisis_productos_por_tipo_sucursal,
-    crear_comparativa_clientes_por_tipo_sucursal
+    crear_comparativa_clientes_por_tipo_sucursal,
+    crear_mapa_riesgos_geoespaciales,
+    crear_grafico_riesgo_score,
+    crear_grafico_factores_riesgo,
+    crear_mapa_oportunidades_cobertura,
+    crear_matriz_factores_riesgo,
+    crear_mapa_oportunidades_sucursales  
 )
 
 from modulos.predicciones import (
@@ -829,89 +838,118 @@ def pagina_prediccion_demanda():
 
 def pagina_analisis_riesgos():
     
-    crear_seccion_encabezado(titulo="Análisis de Riesgos")
-    
-    clientes = cargar_clientes()
+    # Cargar datos
+    datos_consolidados = obtener_datos_consolidados()
     sucursales = cargar_sucursales()
-    cajeros = cargar_cajeros()
+    clientes = cargar_clientes()
+    productos = cargar_productos()
     
-    coords = clientes[['Latitud', 'Longitud']].values
-    kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
-    clientes['Zona'] = kmeans.fit_predict(coords)
-    
-    crear_seccion_encabezado(titulo="Concentración de Clientes")
-    
-    clientes_por_zona = clientes['Zona'].value_counts().sort_values(ascending=False)
-    concentracion_top3 = (clientes_por_zona.head(3).sum() / len(clientes)) * 100
-    
-    fig_conc = px.bar(
-        y=clientes_por_zona.values,
-        x=[f"Zona {i}" for i in clientes_por_zona.index],
-        title='Distribución de Clientes por Zona',
-        labels={'y': 'Clientes', 'x': 'Zona'},
-        template='plotly_white',
-        color=clientes_por_zona.values,
-        color_continuous_scale='Reds'
+    # Calcular riesgos y oportunidades
+    riesgos_df = identificar_riesgos_geoespaciales(sucursales, datos_consolidados, productos)
+    ubicaciones_optimas = identificar_ubicaciones_optimas_sucursales(
+        clientes, sucursales, datos_consolidados, n_clusters=3
     )
-    st.plotly_chart(fig_conc, use_container_width=True)
     
-    col1, col2 = st.columns(2)
+    # ===== SECCIÓN 1: RESUMEN DE RIESGOS =====
+    crear_seccion_encabezado(
+        titulo="Análisis de Riesgos Geoespaciales",
+        descripcion="Evaluación de vulnerabilidades en la red de sucursales bancarias"
+    )
+    
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Concentración Top 3 Zonas", f"{concentracion_top3:.1f}%")
+        muy_alto = len(riesgos_df[riesgos_df['Nivel_Riesgo'] == '🔴 Muy Alto'])
+        st.metric("🔴 Muy Alto", muy_alto)
     
     with col2:
-        num_zonas_67 = 0
-        acum = 0
-        for val in clientes_por_zona.values:
-            acum += val
-            num_zonas_67 += 1
-            if acum >= len(clientes) * 0.67:
-                break
-        st.metric("Zonas para 67% Clientes", num_zonas_67)
+        alto = len(riesgos_df[riesgos_df['Nivel_Riesgo'] == '🟠 Alto'])
+        st.metric("🟠 Alto", alto)
+    
+    with col3:
+        total_clientes_en_riesgo = riesgos_df[
+            riesgos_df['Nivel_Riesgo'].isin(['🔴 Muy Alto', '🟠 Alto'])
+        ]['Clientes_Totales'].sum()
+        st.metric("Clientes en Riesgo", f"{int(total_clientes_en_riesgo):,}")
+    
+    with col4:
+        oportunidades = len(ubicaciones_optimas)
+        st.metric("Ubicaciones Óptimas", oportunidades)
     
     st.divider()
     
-    crear_seccion_encabezado(titulo="Concentración de Valor")
-    
-    saldo_por_zona = clientes.groupby('Zona')['Saldo Promedio de Cuentas'].sum().sort_values(ascending=False)
-    valor_top3 = (saldo_por_zona.head(3).sum() / saldo_por_zona.sum()) * 100
-    
-    fig_valor = px.pie(
-        values=saldo_por_zona.values,
-        names=[f"Zona {i}" for i in saldo_por_zona.index],
-        title='Distribución de Saldo Total por Zona'
+    # ===== SECCIÓN 2: MAPA DE RIESGOS =====
+    crear_seccion_encabezado(
+        titulo="Distribución Geoespacial de Riesgos"
     )
-    st.plotly_chart(fig_valor, use_container_width=True)
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.metric("Valor en Top 3 Zonas", f"{valor_top3:.1f}%")
-    
-    with col2:
-        st.metric("Saldo Total", f"${clientes['Saldo Promedio de Cuentas'].sum():,.0f}")
+    try:
+        mapa_riesgos = crear_mapa_riesgos_geoespaciales(riesgos_df, sucursales)
+        st.components.v1.html(mapa_riesgos._repr_html_(), height=650, width=None)
+    except Exception as e:
+        st.error(f"Error al generar mapa: {e}")
     
     st.divider()
     
-    crear_seccion_encabezado(titulo="Dependencia por Sucursal")
-    
-    clientes = calcular_distancia_a_sucursal_mas_cercana(clientes, sucursales)
-    
-    clientes_por_sucursal = clientes.groupby('Índice_Sucursal_Cercana').agg({
-        'Saldo Promedio de Cuentas': ['sum', 'mean', 'count']
-    }).round(0)
-    
-    clientes_por_sucursal.columns = ['Saldo Total', 'Saldo Promedio', 'Cantidad']
-    clientes_por_sucursal['Sucursal'] = [f"Sucursal {i+1}" for i in clientes_por_sucursal.index]
-    
-    fig_suc_riesgo = px.bar(
-        clientes_por_sucursal,
-        x='Sucursal',
-        y='Cantidad',
-        color='Saldo Total',
-        title='Clientes y Valor por Sucursal',
-        labels={'Cantidad': 'Clientes'},
-        template='plotly_white'
+    # ===== SECCIÓN 3: GRÁFICO DE SCORE =====
+    crear_seccion_encabezado(
+        titulo="Indicador de Riesgo por Sucursal"
     )
-    st.plotly_chart(fig_suc_riesgo, use_container_width=True)
+    
+    try:
+        fig_score = crear_grafico_riesgo_score(riesgos_df)
+        st.plotly_chart(fig_score, use_container_width=True)
+    except Exception as e:
+        st.error(f"Error: {e}")
+    
+    st.divider()
+    
+    # ===== SECCIÓN 6: TABLA DE RIESGOS =====
+    crear_seccion_encabezado(
+        titulo="Detalle de Sucursales por Nivel de Riesgo"
+    )
+    
+    # Tabs por nivel de riesgo
+    tabs = st.tabs(["🔴 Muy Alto", "🟠 Alto", "🟡 Medio", "🟢 Bajo"])
+    niveles = ["🔴 Muy Alto", "🟠 Alto", "🟡 Medio", "🟢 Bajo"]
+    
+    for tab, nivel in zip(tabs, niveles):
+        with tab:
+            datos_nivel = riesgos_df[riesgos_df['Nivel_Riesgo'] == nivel]
+            
+            if len(datos_nivel) > 0:
+                tabla_mostrar = datos_nivel[[
+                    'Sucursal', 'Riesgo_Score', 'Clientes_Totales',
+                    'Volumen_Ventas_Total', 'Volumen_Transacciones',
+                    'Trans_Por_Empleado', 'Distancia_Sucursal_Mas_Cercana_km'
+                ]].copy()
+                
+                tabla_mostrar.columns = [
+                    'Sucursal', 'Score', 'Clientes', 'Ventas ($)', 
+                    'Trans/mes', 'Trans/Emp', 'Dist. Cercana (km)'
+                ]
+                
+                st.dataframe(
+                    tabla_mostrar.sort_values('Score', ascending=False),
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                # Recomendaciones por nivel
+                if nivel == "🔴 Muy Alto":
+                    st.warning(
+                        """**Acciones Inmediatas:**
+                        - Revisar viabilidad operativa
+                        - Considerar fusión o relocalización
+                        - Aumentar inversión en marketing digital"""
+                    )
+                elif nivel == "🟠 Alto":
+                    st.info(
+                        """**Acciones Recomendadas:**
+                        - Diversificar cartera de productos
+                        - Fortalecer atención al cliente
+                        - Evaluar ofertas personalizadas"""
+                    )
+            else:
+                st.info(f"No hay sucursales con nivel de riesgo {nivel}")
+    

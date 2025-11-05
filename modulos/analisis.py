@@ -734,8 +734,8 @@ def pagina_prediccion_demanda():
         )
     
     with col4:
-        ventas_Proyectada = predicciones_productos[predicciones_productos['Mes_Futuro'] <= 3]['Ventas_Proyectada'].mean()
-        cambio = ((ventas_Proyectada - ventas_actuales) / ventas_actuales * 100)
+        ventas_proyectada = predicciones_productos[predicciones_productos['Mes_Futuro'] <= 3]['Ventas_Proyectada'].mean()
+        cambio = ((ventas_proyectada - ventas_actuales) / ventas_actuales * 100)
         st.metric(
             "Crecimiento Esperado",
             f"{cambio:+.1f}%",
@@ -800,24 +800,17 @@ def pagina_prediccion_demanda():
     
     # SECCIÓN 4: DISTRIBUCIÓN DE DEMANDA
     crear_seccion_encabezado(
-        titulo="Distribución de Demanda por Área",
-        descripcion="Visualización jerárquica de productos con mayor demanda esperada"
+        titulo="Distribución de Demanda por Área"
     )
     
     fig_sunburst = crear_grafico_top_productos_area(predicciones_productos)
     st.plotly_chart(fig_sunburst, use_container_width=True)
     
-    st.info(
-        "💡 **Interpretación:** Las áreas más grandes representan mayor demanda esperada. "
-        "Haz clic en las secciones para explorar en detalle."
-    )
-    
     st.divider()
     
     # SECCIÓN 5: MATRIZ DE OPORTUNIDADES
     crear_seccion_encabezado(
-        titulo="Matriz de Oportunidades de Crecimiento",
-        descripcion="Identificación de productos y áreas con mayor potencial de crecimiento"
+        titulo="Matriz de Oportunidades de Crecimiento"
     )
     
     fig_oportunidades, df_oportunidades = crear_matriz_oportunidades_productos(

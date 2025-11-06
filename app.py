@@ -173,6 +173,12 @@ def pagina_inicio():
     with tab4:
         st.dataframe(productos, use_container_width=True, hide_index=True)
 
+    st.divider()
+    st.markdown('<div class="section-header">Datos Consolidados</div>', 
+                unsafe_allow_html=True)
+
+    st.dataframe(datos_consolidados)
+
 
 def main():
 

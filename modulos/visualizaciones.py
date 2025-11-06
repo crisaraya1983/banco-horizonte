@@ -321,57 +321,39 @@ def crear_grafico_transacciones_cajeros_por_tipo(datos_consolidados):
     cajeros_data = datos_consolidados[
         ['Nombre', 'Volumen_Transacciones_Cajero_Diarias', 'Tipos_Transacciones_Cajero']
     ].drop_duplicates(subset=['Nombre']).reset_index(drop=True)
-    
+
     cajeros_data['Transacciones_Mensuales'] = (
         cajeros_data['Volumen_Transacciones_Cajero_Diarias'] * 30
     )
-    
-    cajeros_data['Retiro'] = cajeros_data['Transacciones_Mensuales'] / 3
-    cajeros_data['Consulta'] = cajeros_data['Transacciones_Mensuales'] / 3
-    cajeros_data['Pago'] = cajeros_data['Transacciones_Mensuales'] / 3
-    
+
     cajeros_data = cajeros_data.sort_values(
         'Transacciones_Mensuales', ascending=False
     )
-    
+
     fig = go.Figure()
-    
-    colores = {'Retiro': '#27ae60', 'Consulta': '#3498db', 'Pago': '#f39c12'}
-    
-    for tipo in ['Retiro', 'Consulta', 'Pago']:
-        fig.add_trace(go.Bar(
-            x=cajeros_data['Nombre'],
-            y=cajeros_data[tipo],
-            name=tipo,
-            marker=dict(color=colores[tipo]),
-            text=cajeros_data[tipo].astype(int),
-            textposition='inside',
-            texttemplate='%{text:,.0f}',
-            hovertemplate='<b>%{x}</b><br>' + tipo + ': %{y:,.0f}<extra></extra>'
-        ))
-    
+
+    fig.add_trace(go.Bar(
+        x=cajeros_data['Nombre'],
+        y=cajeros_data['Transacciones_Mensuales'],
+        marker=dict(color='#3498db'),
+        text=cajeros_data['Transacciones_Mensuales'].astype(int),
+        textposition='outside',
+        texttemplate='%{text:,.0f}',
+        hovertemplate='<b>%{x}</b><br>Transacciones: %{y:,.0f}<br>Tipo: %{customdata}<extra></extra>',
+        customdata=cajeros_data['Tipos_Transacciones_Cajero']
+    ))
+
     fig.update_layout(
-        title='Volumen de Transacciones de Cajeros por Tipo (Mensual)',
+        title='Volumen de Transacciones de Cajeros (Mensual)',
         xaxis_title='Ubicación',
         yaxis_title='Transacciones/mes',
         xaxis_tickangle=-45,
-        barmode='stack',
         template='plotly_white',
         height=500,
-        margin=dict(b=100, r=250),
-        legend=dict(
-            orientation="v",
-            yanchor="top",
-            y=0.99,
-            xanchor="left",
-            x=1.15,
-            bgcolor="rgba(255,255,255,0.8)",
-            bordercolor="lightgray",
-            borderwidth=1
-        ),
+        margin=dict(b=100, t=100),
         font=dict(size=12)
     )
-    
+
     fig = aplicar_tema(fig)
     return fig
 

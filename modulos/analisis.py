@@ -129,8 +129,8 @@ def pagina_analisis_cobertura():
             value=f"{int(concentracion_stats['Total_Clientes'].mean()):,}"
         )
         
-        st.markdown("**Detalle por Sucursal**")
-        st.dataframe(concentracion_stats, use_container_width=True, hide_index=True)
+        #st.markdown("**Detalle por Sucursal**")
+        #st.dataframe(concentracion_stats, use_container_width=True, hide_index=True)
     
     st.divider()
 
@@ -225,8 +225,7 @@ def pagina_analisis_cobertura():
     st.divider()
     
     crear_seccion_encabezado(
-        titulo="Análisis: Cobertura vs Concentración de Clientes",
-        descripcion="Relación entre transacciones y clientes por sucursal"
+        titulo="Transacciones vs Concentración de Clientes"
     )
     
     try:
@@ -303,7 +302,7 @@ def pagina_segmentacion_geografica():
         st.metric("Total Empleados", f"{int(total_empleados)}")
         st.metric("Trans/Cliente Promedio", 
                  f"{(total_transacciones / total_clientes):.2f}")
-    
+    """
     st.divider()
     
     crear_seccion_encabezado(
@@ -355,7 +354,7 @@ def pagina_segmentacion_geografica():
                 )
             else:
                 st.info("No hay sucursales en esta categoría")
-
+    """
 
 # OPTIMIZACIÓN LOGÍSTICA
 

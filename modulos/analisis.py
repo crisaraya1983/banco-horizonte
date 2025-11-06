@@ -94,8 +94,7 @@ def pagina_analisis_cobertura():
     st.divider()
     
     crear_seccion_encabezado(
-        titulo="Análisis de Concentración de Clientes",
-        descripcion="Distribución de clientes por sucursal"
+        titulo="Análisis de Concentración de Clientes"
     )
     
     col1, col2 = st.columns(2)
@@ -136,8 +135,7 @@ def pagina_analisis_cobertura():
     st.divider()
 
     crear_seccion_encabezado(
-        titulo="Volumen de Transacciones por Ubicación",
-        descripcion="Análisis del movimiento transaccional en sucursales y cajeros"
+        titulo="Volumen de Transacciones por Ubicación"
     )
 
     col1, col2 = st.columns(2)
@@ -384,8 +382,7 @@ def pagina_optimizacion_logistica():
     st.divider()
     
     crear_seccion_encabezado(
-        titulo="Matriz de Distancias entre Sucursales",
-        descripcion="Distancias en kilómetros entre todas las ubicaciones"
+        titulo="Matriz de Distancias entre Sucursales"
     )
     
     matriz_dist = crear_matriz_distancias(sucursales)
@@ -400,13 +397,10 @@ def pagina_optimizacion_logistica():
     st.divider()
     
     crear_seccion_encabezado(
-        titulo="Plan de Rutas Óptimas para Mantenimiento y Reposición",
-        descripcion="Sucursales Principales atienden a Sucursales Secundarias más cercanas"
+        titulo="Plan de Rutas para Mantenimiento y Reposición de Efectivo"
     )
     
     rutas_optimas = calcular_rutas_mantenimiento(sucursales)
-    
-    st.markdown("### Mapa de Rutas de Mantenimiento")
     
     try:
         mapa_rutas = crear_mapa_rutas_mantenimiento(sucursales, rutas_optimas)
@@ -485,8 +479,7 @@ def pagina_marketing_dirigido():
     st.divider()
 
     crear_seccion_encabezado(
-        titulo="Mapa de Calor: Productos por Ubicación",
-        descripcion="Visualización del volumen de ventas de cada producto en cada sucursal específica"
+        titulo="Volumen de ventas de cada Productos por Ubicación"
     )
     
     try:
@@ -498,8 +491,7 @@ def pagina_marketing_dirigido():
     st.divider()
     
     crear_seccion_encabezado(
-        titulo="Análisis por Tipo de Sucursal",
-        descripcion="Comparación del desempeño de productos en Sucursales Principales vs Secundarias"
+        titulo="Análisis por Tipo de Sucursal"
     )
     
     try:
@@ -547,13 +539,12 @@ def pagina_marketing_dirigido():
     st.divider()
     
     crear_seccion_encabezado(
-        titulo="Análisis Detallado por Producto",
-        descripcion="Selecciona un producto para ver su desempeño detallado por ubicación"
+        titulo="Ventas por Producto"
     )
     
     productos_disponibles = sorted(datos_consolidados['Productos Financieros Adquiridos'].unique())
     producto_seleccionado = st.selectbox(
-        "Seleccionar Producto Financiero",
+        "Selecciona un Producto Financiero",
         productos_disponibles
     )
     
@@ -701,13 +692,12 @@ def pagina_prediccion_demanda():
     st.divider()
     
     crear_seccion_encabezado(
-        titulo="Evolución Temporal de la Demanda",
-        descripcion="Proyección de ventas futuras por producto en cada sucursal"
+        titulo="Proyección de Ventas por Producto"
     )
     
     sucursales_disponibles = sorted(predicciones_productos['Sucursal'].unique())
     sucursal_seleccionada = st.selectbox(
-        "Selecciona una sucursal para análisis detallado",
+        "Selecciona una sucursal para un análisis detallado",
         sucursales_disponibles,
         key="sucursal_evolucion"
     )
@@ -758,7 +748,7 @@ def pagina_analisis_riesgos():
     
     crear_seccion_encabezado(
         titulo="Análisis de Riesgos Geoespaciales",
-        descripcion="Evaluación de vulnerabilidades en la red de sucursales bancarias"
+        descripcion="Evaluación de vulnerabilidades en las sucursales bancarias"
     )
     
     col1, col2, col3, col4 = st.columns(4)

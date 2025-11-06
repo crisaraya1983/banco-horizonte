@@ -252,7 +252,7 @@ def crear_grafico_concentracion_clientes(datos_consolidados):
         concentracion,
         x='Sucursal',
         y='Total_Clientes',
-        title='Concentración de Clientes por Sucursal',
+        title='Clientes por Sucursal',
         labels={'Total_Clientes': 'Cantidad de Clientes', 'Sucursal': 'Sucursal'},
         template='plotly_white',
         color='Total_Clientes',
